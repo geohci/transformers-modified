@@ -151,13 +151,21 @@ if not os.path.exists(args.data_dir):
 for lang, lang_code in lang_dict.items():
 	f1 = open(os.path.join(args.data_dir, "train.source" + lang), 'w', encoding='utf-8')
 	f2 = open(os.path.join(args.data_dir, "train.target" + lang), 'w', encoding='utf-8')
+    f3 = open(os.path.join(args.data_dir, "val.source" + lang), 'w', encoding='utf-8')
+    f4 = open(os.path.join(args.data_dir, "val.target" + lang), 'w', encoding='utf-8')
 
 	for i in range(args.num_train):
 		f1.write(articles_fin[lang][i] + "\n")
 		f2.write(descriptions_fin[lang][i] + "\n")
 
+    for i in range(args.num_train, args.num_train+10000):
+        f3.write(articles_fin[lang][i]+ "\n")
+        f4.write(descriptions_fin[lang][i] + "\n")
+
 	f1.close()
 	f2.close()
+    f3.close()
+    f4.close()
 
 f = open(os.path.join(args.data_dir, "train.embd"), 'w', encoding='utf-8')
 for i in range(args.num_train):
