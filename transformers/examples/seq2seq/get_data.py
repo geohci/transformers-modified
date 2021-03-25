@@ -9,6 +9,8 @@ import numpy as np
 parser = argparse.ArgumentParser()
 parser.add_argument("--langs", type=str, help="list of language codes")
 parser.add_argument("--num_train", type=int, help="number of samples in train set")
+parser.add_argument("--num_val", type=int, help="number of samples in validation set")
+parser.add_argument("--num_test", type=int, help="number of samples in test set")
 parser.add_argument("--path", type=str, help="path to the main folder containing data")
 parser.add_argument("--data_dir", type=str, help="directory to store the data")
 parser.add_argument("--embd_path", type=str, help="path to pretrained graph embeddings")
@@ -153,20 +155,39 @@ for lang, lang_code in lang_dict.items():
 	f2 = open(os.path.join(args.data_dir, "train.target" + lang), 'w', encoding='utf-8')
     f3 = open(os.path.join(args.data_dir, "val.source" + lang), 'w', encoding='utf-8')
     f4 = open(os.path.join(args.data_dir, "val.target" + lang), 'w', encoding='utf-8')
+    f5 = open(os.path.join(args.data_dir, "test.source" + lang), 'w', encoding='utf-8')
+    f6 = open(os.path.join(args.data_dir, "test.target" + lang), 'w', encoding='utf-8')
 
 	for i in range(args.num_train):
 		f1.write(articles_fin[lang][i] + "\n")
 		f2.write(descriptions_fin[lang][i] + "\n")
 
-    for i in range(args.num_train, args.num_train+10000):
+    for i in range(args.num_train, args.num_train + args.num_val):
         f3.write(articles_fin[lang][i]+ "\n")
         f4.write(descriptions_fin[lang][i] + "\n")
+
+    for i in range(args.num_train + args.num_val, args.num_train + args.num_val + args.num_test):
+        f5.write(articles_fin[lang][i]+ "\n")
+        f6.write(descriptions_fin[lang][i] + "\n")
 
 	f1.close()
 	f2.close()
     f3.close()
     f4.close()
+    f5.close()
+    f6.close()
 
 f = open(os.path.join(args.data_dir, "train.embd"), 'w', encoding='utf-8')
 for i in range(args.num_train):
 	f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
+f.close()
+
+f = open(os.path.join(args.data_dir, "val.embd"), 'w', encoding='utf-8')
+for i in range(args.num_train, args.num_train + args.num_val):
+    f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
+f.close()
+
+f = open(os.path.join(args.data_dir, "test.embd"), 'w', encoding='utf-8')
+for i in range(args.num_train + args.num_val, args.num_train + args.num_val + args.num_test):
+    f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
+f.close()
