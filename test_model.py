@@ -39,6 +39,9 @@ parser.add_argument("--output_folder", type=str, help="path to the folder where 
 
 args = parser.parse_args()
 
+if not os.path.exists(args.output_folder):
+    os.makedirs(args.output_folder)
+
 model = MBartForConditionalGeneration.from_pretrained(args.model_path_or_name)
 tokenizer = MBartTokenizer.from_pretrained(args.tokenizer_path)
 if args.bert_path is not None:
