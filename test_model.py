@@ -82,7 +82,7 @@ outputs = open(Path(args.output_folder).joinpath("outputs.txt"), 'w', encoding='
 target_file = open(Path(args.output_folder).joinpath("mod_targets.txt"), 'w', encoding='utf-8')
 lang_file = open(Path(args.output_folder).joinpath("lang_list.txt"), 'w', encoding='utf-8')
 
-for i in range(2):
+for i in range(len(embds)):
     batch = {}
     batch_encodings = {}
     remaining_langs = []
