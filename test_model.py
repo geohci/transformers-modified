@@ -5,6 +5,7 @@ from transformers.tokenization_utils_base import BatchEncoding
 import torch
 import numpy as np
 import logging
+import os
 import argparse
 from pathlib import Path
 logging.basicConfig(level=logging.ERROR)
