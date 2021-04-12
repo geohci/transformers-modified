@@ -6,6 +6,8 @@ import argparse
 import pickle
 import numpy as np
 
+np.random.seed(0)
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--langs", type=str, help="list of language codes")
 parser.add_argument("--num_train", type=int, help="number of samples in train set")
@@ -87,13 +89,14 @@ for lang, lang_code in lang_dict.items():
                 qid = re.search('"wikibase_item":"(.+?)"', article)
                 if qid is None:
                     continue
-                if description is None:
-                    continue
+                #if description is None:
+                #    continue
                 if extract is None:
                     continue
                 qid = qid.group(1)
                 extract = extract.group(1)
-                description = description.group(1)
+                if description is not None:
+                    description = description.group(1)
                 try:
                     articles_lang = articles[lang]
                     articles_lang.append(extract)
@@ -117,9 +120,12 @@ embds_fin = []
 
 all_qids = []
 for lang, qids_lang in qids.items():
-	all_qids.extend(qids_lang)
+    all_qids.extend(qids_lang)
+
+np.random.shuffle(all_qids)
 
 for qid in all_qids:
+    desc_flag = True
     for lang, lang_code in lang_dict.items():
         try:
             index = qid_dicts[lang][qid]
@@ -127,7 +133,11 @@ for qid in all_qids:
             index = None
         if index is not None:
             extract = articles[lang][index]
-            description = descriptions[lang][index]
+            if descriptions[lang][index] is not None:
+                description = descriptions[lang][index]
+                desc_flag = False
+            else:
+                description = "no article"
         else:
             extract = "no article"
             description = "no article"
@@ -140,6 +150,12 @@ for qid in all_qids:
         except:
             articles_fin[lang] = [extract]
             descriptions_fin[lang] = [description]
+    if desc_flag:
+        # remove the sample with no descriptions
+        for lang, lang_code in lang_dict.items():
+            articles_fin[lang].pop()
+            descriptions_fin[lang].pop()
+        continue
 
     try:
         embd = embd_dict[qid]
@@ -151,16 +167,16 @@ if not os.path.exists(args.data_dir):
     os.makedirs(args.data_dir)
 
 for lang, lang_code in lang_dict.items():
-	f1 = open(os.path.join(args.data_dir, "train.source" + lang), 'w', encoding='utf-8')
-	f2 = open(os.path.join(args.data_dir, "train.target" + lang), 'w', encoding='utf-8')
+    f1 = open(os.path.join(args.data_dir, "train.source" + lang), 'w', encoding='utf-8')
+    f2 = open(os.path.join(args.data_dir, "train.target" + lang), 'w', encoding='utf-8')
     f3 = open(os.path.join(args.data_dir, "val.source" + lang), 'w', encoding='utf-8')
     f4 = open(os.path.join(args.data_dir, "val.target" + lang), 'w', encoding='utf-8')
     f5 = open(os.path.join(args.data_dir, "test.source" + lang), 'w', encoding='utf-8')
     f6 = open(os.path.join(args.data_dir, "test.target" + lang), 'w', encoding='utf-8')
 
-	for i in range(args.num_train):
-		f1.write(articles_fin[lang][i] + "\n")
-		f2.write(descriptions_fin[lang][i] + "\n")
+    for i in range(args.num_train):
+	    f1.write(articles_fin[lang][i] + "\n")
+	    f2.write(descriptions_fin[lang][i] + "\n")
 
     for i in range(args.num_train, args.num_train + args.num_val):
         f3.write(articles_fin[lang][i]+ "\n")
@@ -170,8 +186,8 @@ for lang, lang_code in lang_dict.items():
         f5.write(articles_fin[lang][i]+ "\n")
         f6.write(descriptions_fin[lang][i] + "\n")
 
-	f1.close()
-	f2.close()
+    f1.close()
+    f2.close()
     f3.close()
     f4.close()
     f5.close()
@@ -179,7 +195,7 @@ for lang, lang_code in lang_dict.items():
 
 f = open(os.path.join(args.data_dir, "train.embd"), 'w', encoding='utf-8')
 for i in range(args.num_train):
-	f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
+    f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
 f.close()
 
 f = open(os.path.join(args.data_dir, "val.embd"), 'w', encoding='utf-8')

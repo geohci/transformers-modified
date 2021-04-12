@@ -63,7 +63,6 @@ for lang in languages:
 
 sources = {}
 targets = {}
-lang_list = []
     
 for lang, lang_code in lang_dict.items():
     f = open(Path(args.data_dir).joinpath("test" + ".source" + lang), 'r', encoding='utf-8')
@@ -87,8 +86,13 @@ for i in range(len(embds)):
     batch_encodings = {}
     remaining_langs = []
     available_langs = []
+    target_langs = []
     for lang, lang_code in lang_dict.items():
         txt = sources[lang][i].strip()
+
+        if targets[lang][i].strip() != "no article":
+            target_langs.append(lang)
+
         if txt == "no article":
             remaining_langs.append(lang)
             continue
@@ -122,7 +126,8 @@ for i in range(len(embds)):
     #summary embeddings
     if args.bert_path is not None:
         bert_inputs = {}
-        for lang in lang_list:
+        for lang in target_langs:
+            lang = lang[0:2]
             bert_outs = tokenizer_bert(
                 [targets[lang][i].strip()], 
                 return_tensors="pt",
@@ -138,8 +143,13 @@ for i in range(len(embds)):
 
     batch = prepare_inputs(batch, device)
     
-    for target_lang in available_langs:
-        target = targets[target_lang[0:2]][i]
+    for tgt_lang in target_langs:
+        target_lang = lang_dict[tgt_lang]
+        target = targets[tgt_lang][i]
+        if args.bert_path is not None:
+            bert_inputs_modified = bert_inputs.copy()
+            bert_inputs_modified.pop(tgt_lang)
+            batch["bert_inputs"] = bert_inputs_modified
         translated_tokens = model.generate(**batch, max_length=20, min_length=2, length_penalty=2.0, num_beams=4, early_stopping=True, target_lang = target_lang, decoder_start_token_id=tokenizer.lang_code_to_id[target_lang])
         output = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
         outputs.write(output+"\n")

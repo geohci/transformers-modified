@@ -323,8 +323,11 @@ class Seq2SeqDataCollator:
         for key, val in batch[0]["src_texts"].items():
             if val == "no article":
                 langs.remove(key)
-
-        tgt_lang = np.random.choice(langs, 1)[0]
+        target_langs = list(self.lang_codes.keys())
+        for key, val in batch[0]["tgt_texts"].items():
+            if val == "no article":
+                target_langs.remove(key)
+        tgt_lang = np.random.choice(target_langs, 1)[0]
         tgt_lang = self.lang_codes[tgt_lang]
         remaining_langs = list(set(list(self.lang_codes.keys())) - set(langs))
         batch_size = len(batch)
@@ -385,8 +388,8 @@ class Seq2SeqDataCollator:
         #summary embeddings
         if self.tokenizer_bert is not None:
             bert_inputs = {}
-            langs.remove(tgt_lang[0:2])
-            for lang in langs:
+            target_langs.remove(tgt_lang[0:2])
+            for lang in target_langs:
                 bert_outs = self.tokenizer_bert(
                     [x["tgt_texts"][lang] for x in batch],
                     max_length=self.data_args.max_source_length,     

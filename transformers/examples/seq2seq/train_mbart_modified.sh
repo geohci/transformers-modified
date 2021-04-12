@@ -1,6 +1,8 @@
 python finetune_trainer.py \
     --learning_rate=3e-5 \
     --do_train \
+    --do_eval \
+    --evaluation_strategy="steps" \
     --freeze_encoder \
     --freeze_embeds \
     --n_val 1000 \
@@ -11,7 +13,8 @@ python finetune_trainer.py \
     --dataloader_num_workers 1 \
     --tgt_lang en_XX \
     --src_lang en_XX \
-    --save_steps 10000 \
+    --save_steps 100000 \
+    --eval_steps 100000 \
     --tokenizer_name facebook/mbart-large-cc25 \
     --model_name_or_path facebook/mbart-large-cc25 \
     --languages en_XX,cs_CZ,fr_XX,it_IT,fi_FI,de_DE,nl_XX,ro_RO,ru_RU,ja_XX \

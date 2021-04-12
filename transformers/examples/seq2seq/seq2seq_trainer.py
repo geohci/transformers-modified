@@ -203,6 +203,10 @@ class Seq2SeqTrainer(Trainer):
                 generated_tokens = self._pad_tensors_to_max_len(generated_tokens, gen_kwargs["max_length"])
 
         labels = inputs.pop("labels")
+        target_lang = inputs["target_lang"]
+        target_lang = target_lang[0:2]  
+        
+        labels = labels[target_lang]
         with torch.no_grad():
             # compute loss on predict data
             loss, logits = self._compute_loss(model, inputs, labels)
