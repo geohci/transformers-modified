@@ -2,8 +2,6 @@ python run_summarization.py \
     --learning_rate=3e-5 \
     --do_train \
     --do_eval \
-    --data_dir /content/gdrive/MyDrive/maxime_data/data-processed/ \
-    --output_dir /content/gdrive/MyDrive/hugging_debug/mbart_new_all_rmvd/ \
     --evaluation_strategy="steps" \
     --freeze_encoder \
     --freeze_embeds \
