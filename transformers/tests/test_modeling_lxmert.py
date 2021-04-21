@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2018 LXMERT Authors.
+# Copyright 2018 LXMERT Authors, The Hugging Face Team.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import copy
 import unittest
 
 from transformers import is_torch_available
+from transformers.models.auto import get_values
 from transformers.testing_utils import require_torch, slow, torch_device
 
 from .test_configuration_common import ConfigTester
@@ -527,20 +528,16 @@ class LxmertModelTest(ModelTesterMixin, unittest.TestCase):
     test_pruning = False
     test_torchscript = False
 
-    test_head_masking = False
-    test_pruning = False
-    test_torchscript = False
-
     # overwrite function because qa models takes different input label shape
     def _prepare_for_class(self, inputs_dict, model_class, return_labels=False):
         inputs_dict = copy.deepcopy(inputs_dict)
 
         if return_labels:
-            if model_class in MODEL_FOR_QUESTION_ANSWERING_MAPPING.values():
+            if model_class in get_values(MODEL_FOR_QUESTION_ANSWERING_MAPPING):
                 inputs_dict["labels"] = torch.zeros(
                     self.model_tester.batch_size, dtype=torch.long, device=torch_device
                 )
-            elif model_class in MODEL_FOR_PRETRAINING_MAPPING.values():
+            elif model_class in get_values(MODEL_FOR_PRETRAINING_MAPPING):
                 # special case for models like BERT that use multi-loss training for PreTraining
                 inputs_dict["labels"] = torch.zeros(
                     (self.model_tester.batch_size, self.model_tester.seq_length), dtype=torch.long, device=torch_device
@@ -697,3 +694,36 @@ class LxmertModelTest(ModelTesterMixin, unittest.TestCase):
             config.output_hidden_states = True
 
             check_hidden_states_output(inputs_dict, config, model_class)
+
+    def test_retain_grad_hidden_states_attentions(self):
+        config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+        config.output_hidden_states = True
+        config.output_attentions = True
+
+        # no need to test all models as different heads yield the same functionality
+        model_class = self.all_model_classes[0]
+        model = model_class(config)
+        model.to(torch_device)
+
+        inputs = self._prepare_for_class(inputs_dict, model_class)
+
+        outputs = model(**inputs)
+
+        hidden_states_lang = outputs.language_hidden_states[0]
+        attentions_lang = outputs.language_attentions[0]
+
+        hidden_states_vision = outputs.vision_hidden_states[0]
+        attentions_vision = outputs.vision_attentions[0]
+
+        hidden_states_lang.retain_grad()
+        attentions_lang.retain_grad()
+        hidden_states_vision.retain_grad()
+        attentions_vision.retain_grad()
+
+        outputs.language_output.flatten()[0].backward(retain_graph=True)
+        outputs.vision_output.flatten()[0].backward(retain_graph=True)
+
+        self.assertIsNotNone(hidden_states_lang.grad)
+        self.assertIsNotNone(attentions_vision.grad)
+        self.assertIsNotNone(hidden_states_vision.grad)
+        self.assertIsNotNone(attentions_vision.grad)

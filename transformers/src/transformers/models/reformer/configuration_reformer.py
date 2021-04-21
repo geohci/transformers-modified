@@ -22,8 +22,8 @@ from ...utils import logging
 logger = logging.get_logger(__name__)
 
 REFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "google/reformer-crime-and-punishment": "https://cdn.huggingface.co/google/reformer-crime-and-punishment/config.json",
-    "google/reformer-enwik8": "https://cdn.huggingface.co/google/reformer-enwik8/config.json",
+    "google/reformer-crime-and-punishment": "https://huggingface.co/google/reformer-crime-and-punishment/resolve/main/config.json",
+    "google/reformer-enwik8": "https://huggingface.co/google/reformer-enwik8/resolve/main/config.json",
 }
 
 
@@ -44,7 +44,7 @@ class ReformerConfig(PretrainedConfig):
 
             For more information on LSHSelfAttention layer, see `LSH Self Attention
             <reformer.html#lsh-self-attention>`__. For more information on LocalSelfAttention layer, see `Local Self
-            Attention <reformer.html#local-sensitive-hashing-self-attention>`__.
+            Attention <reformer.html#local-self-attention>`__.
         axial_pos_embds (:obj:`bool`, `optional`, defaults to :obj:`True`):
             Whether or not to use axial position embeddings. For more information on how axial position embeddings
             work, see `Axial Position Encodings <reformer.html#axial-positional-encodings>`__.
@@ -138,6 +138,8 @@ class ReformerConfig(PretrainedConfig):
             :obj:`inputs_ids` passed when calling :class:`~transformers.ReformerModel`.
         tie_word_embeddings (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Whether to tie input and output embeddings.
+        use_cache (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether or not the model should return the last key/values attentions (not used by all models).
 
     Examples::
 
@@ -188,6 +190,7 @@ class ReformerConfig(PretrainedConfig):
         pad_token_id=0,
         vocab_size=320,
         tie_word_embeddings=False,
+        use_cache=True,
         **kwargs
     ):
         super().__init__(
@@ -226,3 +229,4 @@ class ReformerConfig(PretrainedConfig):
         self.axial_norm_std = axial_norm_std
         self.chunk_size_lm_head = chunk_size_lm_head
         self.attn_layers = attn_layers
+        self.use_cache = use_cache

@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2018 The Google AI Language Team Authors.
+# Copyright 2020 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,22 +99,23 @@ class AutoTokenizerTest(unittest.TestCase):
 
         for mapping in mappings:
             mapping = tuple(mapping.items())
-            for index, (child_config, (child_model_py, child_model_fast)) in enumerate(mapping[1:]):
-                for parent_config, (parent_model_py, parent_model_fast) in mapping[: index + 1]:
-                    with self.subTest(
-                        msg="Testing if {} is child of {}".format(child_config.__name__, parent_config.__name__)
-                    ):
+            for index, (child_config, _) in enumerate(mapping[1:]):
+                for parent_config, _ in mapping[: index + 1]:
+                    with self.subTest(msg=f"Testing if {child_config.__name__} is child of {parent_config.__name__}"):
                         self.assertFalse(issubclass(child_config, parent_config))
-
-                        # Check for Slow tokenizer implementation if provided
-                        if child_model_py and parent_model_py:
-                            self.assertFalse(issubclass(child_model_py, parent_model_py))
-
-                        # Check for Fast tokenizer implementation if provided
-                        if child_model_fast and parent_model_fast:
-                            self.assertFalse(issubclass(child_model_fast, parent_model_fast))
 
     @require_tokenizers
     def test_from_pretrained_use_fast_toggle(self):
         self.assertIsInstance(AutoTokenizer.from_pretrained("bert-base-cased", use_fast=False), BertTokenizer)
         self.assertIsInstance(AutoTokenizer.from_pretrained("bert-base-cased"), BertTokenizerFast)
+
+    @require_tokenizers
+    def test_do_lower_case(self):
+        tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased", do_lower_case=False)
+        sample = "Hello, world. How are you?"
+        tokens = tokenizer.tokenize(sample)
+        self.assertEqual("[UNK]", tokens[0])
+
+        tokenizer = AutoTokenizer.from_pretrained("microsoft/mpnet-base", do_lower_case=False)
+        tokens = tokenizer.tokenize(sample)
+        self.assertEqual("[UNK]", tokens[0])

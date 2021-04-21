@@ -17,9 +17,7 @@ import collections
 import os
 from typing import List, Optional, Tuple
 
-from ...file_utils import add_start_docstrings
-from ...tokenization_utils import BatchEncoding, PreTrainedTokenizer
-from ...tokenization_utils_base import PREPARE_SEQ2SEQ_BATCH_DOCSTRING
+from ...tokenization_utils import PreTrainedTokenizer
 from ...utils import logging
 from ..bert.tokenization_bert import BasicTokenizer, WordpieceTokenizer
 
@@ -137,8 +135,8 @@ class ProphetNetTokenizer(PreTrainedTokenizer):
 
         if not os.path.isfile(vocab_file):
             raise ValueError(
-                "Can't find a vocabulary file at path '{}'. To load the vocabulary from a Google pretrained "
-                "model use `tokenizer = ProphetNetTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`".format(vocab_file)
+                f"Can't find a vocabulary file at path '{vocab_file}'. To load the vocabulary from a Google pretrained "
+                "model use `tokenizer = ProphetNetTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`"
             )
         self.vocab = load_vocab(vocab_file)
         self.ids_to_tokens = collections.OrderedDict([(ids, tok) for tok, ids in self.vocab.items()])
@@ -205,12 +203,9 @@ class ProphetNetTokenizer(PreTrainedTokenizer):
             :obj:`List[int]`: A list of integers in the range [0, 1]: 1 for a special token, 0 for a sequence token.
         """
         if already_has_special_tokens:
-            if token_ids_1 is not None:
-                raise ValueError(
-                    "You should not supply a second sequence if the provided sequence of "
-                    "ids is already formatted with special tokens for the model."
-                )
-            return list(map(lambda x: 1 if x in [self.sep_token_id, self.cls_token_id] else 0, token_ids_0))
+            return super().get_special_tokens_mask(
+                token_ids_0=token_ids_0, token_ids_1=token_ids_1, already_has_special_tokens=True
+            )
 
         if token_ids_1 is None:
             return ([0] * len(token_ids_0)) + [1]
@@ -257,8 +252,8 @@ class ProphetNetTokenizer(PreTrainedTokenizer):
             for token, token_index in sorted(self.vocab.items(), key=lambda kv: kv[1]):
                 if index != token_index:
                     logger.warning(
-                        "Saving vocabulary to {}: vocabulary indices are not consecutive."
-                        " Please check that the vocabulary is not corrupted!".format(vocab_file)
+                        f"Saving vocabulary to {vocab_file}: vocabulary indices are not consecutive."
+                        " Please check that the vocabulary is not corrupted!"
                     )
                     index = token_index
                 writer.write(token + "\n")
@@ -288,43 +283,3 @@ class ProphetNetTokenizer(PreTrainedTokenizer):
             return token_ids_0 + [self.sep_token_id]
         sep = [self.sep_token_id]
         return token_ids_0 + sep + token_ids_1 + sep
-
-    @add_start_docstrings(PREPARE_SEQ2SEQ_BATCH_DOCSTRING)
-    def prepare_seq2seq_batch(
-        self,
-        src_texts: List[str],
-        tgt_texts: Optional[List[str]] = None,
-        max_length: Optional[int] = None,
-        max_target_length: Optional[int] = None,
-        padding: str = "longest",
-        return_tensors: str = None,
-        truncation: bool = True,
-        **kwargs,
-    ) -> BatchEncoding:
-        if max_length is None:
-            max_length = self.model_max_length
-        model_inputs = self(
-            src_texts,
-            add_special_tokens=True,
-            return_tensors=return_tensors,
-            max_length=max_length,
-            padding=padding,
-            truncation=truncation,
-            **kwargs,
-        )
-        if tgt_texts is None:
-            return model_inputs
-        # Process tgt_texts
-        if max_target_length is None:
-            max_target_length = max_length
-        labels_and_decoder_mask = self(
-            tgt_texts,
-            add_special_tokens=True,
-            return_tensors=return_tensors,
-            padding=padding,
-            max_length=max_target_length,
-            truncation=truncation,
-            **kwargs,
-        )
-        model_inputs["labels"] = labels_and_decoder_mask["input_ids"]
-        return model_inputs

@@ -1,3 +1,17 @@
+# Copyright 2020 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 This script can be used to convert a head-less TF2.x Bert model to PyTorch, as published on the official GitHub:
 https://github.com/tensorflow/models/tree/master/official/nlp/bert
@@ -24,14 +38,14 @@ logger = logging.get_logger(__name__)
 
 def load_tf2_weights_in_bert(model, tf_checkpoint_path, config):
     tf_path = os.path.abspath(tf_checkpoint_path)
-    logger.info("Converting TensorFlow checkpoint from {}".format(tf_path))
+    logger.info(f"Converting TensorFlow checkpoint from {tf_path}")
     # Load weights from TF model
     init_vars = tf.train.list_variables(tf_path)
     names = []
     arrays = []
     layer_depth = []
     for full_name, shape in init_vars:
-        # logger.info("Loading TF weight {} with shape {}".format(name, shape))
+        # logger.info(f"Loading TF weight {name} with shape {shape}")
         name = full_name.split("/")
         if full_name == "_CHECKPOINTABLE_OBJECT_GRAPH" or name[0] in ["global_step", "save_counter"]:
             logger.info(f"Skipping non-model layer {full_name}")

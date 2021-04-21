@@ -23,24 +23,14 @@ from typing import List, Optional, Tuple
 
 import sentencepiece as spm
 
-from ...file_utils import add_start_docstrings
-from ...tokenization_utils import BatchEncoding, PreTrainedTokenizer
-from ...tokenization_utils_base import PREPARE_SEQ2SEQ_BATCH_DOCSTRING
+from ...tokenization_utils import PreTrainedTokenizer
 from ...utils import logging
 
 
 logger = logging.get_logger(__name__)
 
-####################################################
-# Mapping from the keyword arguments names of Tokenizer `__init__`
-# to file names for serializing Tokenizer instances
-####################################################
 VOCAB_FILES_NAMES = {"vocab_file": "spiece.model"}
 
-####################################################
-# Mapping from the keyword arguments names of Tokenizer `__init__`
-# to pretrained vocabulary URL for all the model ids.
-####################################################
 PRETRAINED_VOCAB_FILES_MAP = {
     "vocab_file": {
         "t5-small": "https://huggingface.co/t5-small/resolve/main/spiece.model",
@@ -51,9 +41,6 @@ PRETRAINED_VOCAB_FILES_MAP = {
     }
 }
 
-####################################################
-# Mapping from model ids to max length of inputs
-####################################################
 PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
     "t5-small": 512,
     "t5-base": 512,
@@ -94,12 +81,16 @@ class T5Tokenizer(PreTrainedTokenizer):
             <https://github.com/google-research/text-to-text-transfer-transformer/blob/9fd7b14a769417be33bc6c850f9598764913c833/t5/data/preprocessors.py#L2117>`__).
         additional_special_tokens (:obj:`List[str]`, `optional`):
             Additional special tokens used by the tokenizer.
+
+    Attributes:
+        sp_model (:obj:`SentencePieceProcessor`):
+            The `SentencePiece` processor that is used for every conversion (string, tokens and IDs).
     """
 
     vocab_files_names = VOCAB_FILES_NAMES
     pretrained_vocab_files_map = PRETRAINED_VOCAB_FILES_MAP
     max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
-    model_input_names = ["attention_mask"]
+    model_input_names = ["input_ids", "attention_mask"]
 
     def __init__(
         self,
@@ -113,7 +104,7 @@ class T5Tokenizer(PreTrainedTokenizer):
     ):
         # Add extra_ids to the special token list
         if extra_ids > 0 and additional_special_tokens is None:
-            additional_special_tokens = ["<extra_id_{}>".format(i) for i in range(extra_ids)]
+            additional_special_tokens = [f"<extra_id_{i}>" for i in range(extra_ids)]
         elif extra_ids > 0 and additional_special_tokens is not None:
             # Check that we have the right number of extra_id special tokens
             extra_tokens = len(set(filter(lambda x: bool("extra_id" in x), additional_special_tokens)))
@@ -166,12 +157,10 @@ class T5Tokenizer(PreTrainedTokenizer):
             :obj:`List[int]`: A list of integers in the range [0, 1]: 1 for a special token, 0 for a sequence token.
         """
         if already_has_special_tokens:
-            if token_ids_1 is not None:
-                raise ValueError(
-                    "You should not supply a second sequence if the provided sequence of "
-                    "ids is already formatted with special tokens for the model."
-                )
-            return list(map(lambda x: 1 if x in [self.sep_token_id, self.cls_token_id] else 0, token_ids_0))
+            return super().get_special_tokens_mask(
+                token_ids_0=token_ids_0, token_ids_1=token_ids_1, already_has_special_tokens=True
+            )
+
         # normal case: some special tokens
         if token_ids_1 is None:
             return ([0] * len(token_ids_0)) + [1]
@@ -266,7 +255,7 @@ class T5Tokenizer(PreTrainedTokenizer):
         if index < self.sp_model.get_piece_size():
             token = self.sp_model.IdToPiece(index)
         else:
-            token = "<extra_id_{}>".format(self.vocab_size - 1 - index)
+            token = f"<extra_id_{self.vocab_size - 1 - index}>"
         return token
 
     def convert_tokens_to_string(self, tokens):
@@ -285,7 +274,7 @@ class T5Tokenizer(PreTrainedTokenizer):
 
     def save_vocabulary(self, save_directory: str, filename_prefix: Optional[str] = None) -> Tuple[str]:
         if not os.path.isdir(save_directory):
-            logger.error("Vocabulary path ({}) should be a directory".format(save_directory))
+            logger.error(f"Vocabulary path ({save_directory}) should be a directory")
             return
         out_vocab_file = os.path.join(
             save_directory, (filename_prefix + "-" if filename_prefix else "") + VOCAB_FILES_NAMES["vocab_file"]
@@ -293,45 +282,6 @@ class T5Tokenizer(PreTrainedTokenizer):
 
         if os.path.abspath(self.vocab_file) != os.path.abspath(out_vocab_file):
             copyfile(self.vocab_file, out_vocab_file)
+            logger.info(f"Copy vocab file to {out_vocab_file}")
 
         return (out_vocab_file,)
-
-    @add_start_docstrings(PREPARE_SEQ2SEQ_BATCH_DOCSTRING)
-    def prepare_seq2seq_batch(
-        self,
-        src_texts: List[str],
-        tgt_texts: Optional[List[str]] = None,
-        max_length: Optional[int] = None,
-        max_target_length: Optional[int] = None,
-        padding: str = "longest",
-        return_tensors: str = None,
-        truncation: bool = True,
-        **kwargs,
-    ) -> BatchEncoding:
-        if max_length is None:
-            max_length = self.model_max_length
-        model_inputs = self(
-            src_texts,
-            add_special_tokens=True,
-            return_tensors=return_tensors,
-            max_length=max_length,
-            padding=padding,
-            truncation=truncation,
-            **kwargs,
-        )
-        if tgt_texts is None:
-            return model_inputs
-        # Process tgt_texts
-        if max_target_length is None:
-            max_target_length = max_length
-        labels_and_decoder_mask = self(
-            tgt_texts,
-            add_special_tokens=True,
-            return_tensors=return_tensors,
-            padding=padding,
-            max_length=max_target_length,
-            truncation=truncation,
-            **kwargs,
-        )
-        model_inputs["labels"] = labels_and_decoder_mask["input_ids"]
-        return model_inputs

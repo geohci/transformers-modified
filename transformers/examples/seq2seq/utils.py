@@ -1,3 +1,17 @@
+# Copyright 2020 The HuggingFace Team. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import itertools
 import json
 import linecache
@@ -18,10 +32,10 @@ from sacrebleu import corpus_bleu
 from torch import nn
 from torch.utils.data import Dataset, Sampler
 
-from sentence_splitter import add_newline_to_end_of_each_sentence
+#from sentence_splitter import add_newline_to_end_of_each_sentence
 from transformers import BartTokenizer, EvalPrediction, PreTrainedTokenizer, T5Tokenizer
 from transformers.file_utils import cached_property
-from transformers.models.bart.modeling_bart import shift_tokens_right
+from transformers.models.mbart.modeling_mbart import shift_tokens_right
 
 
 try:
@@ -68,8 +82,11 @@ def build_compute_metrics_fn(task_name: str, tokenizer: PreTrainedTokenizer) -> 
         return np.count_nonzero(tokens != tokenizer.pad_token_id)
 
     def decode_pred(pred: EvalPrediction) -> Tuple[List[str], List[str]]:
-        pred_str = tokenizer.batch_decode(pred.predictions, skip_special_tokens=True)
-        label_str = tokenizer.batch_decode(pred.label_ids, skip_special_tokens=True)
+        pred_ids = pred.predictions
+        label_ids = pred.label_ids
+        pred_str = tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
+        label_ids[label_ids == -100] = tokenizer.pad_token_id
+        label_str = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
         pred_str = lmap(str.strip, pred_str)
         label_str = lmap(str.strip, label_str)
         return pred_str, label_str
@@ -140,7 +157,7 @@ class AbstractSeq2SeqDataset(Dataset):
             self.used_char_len = True
         self.max_source_length = max_source_length
         self.max_target_length = max_target_length
-        assert min(self.src_lens) > 0, f"found empty line in {self.src_files['en']}"
+        assert min(self.src_lens) > 0, f"found empty line in {self.src_file}"
         self.tokenizer = tokenizer
         self.prefix = prefix if prefix is not None else ""
 
@@ -267,46 +284,25 @@ class Seq2SeqDataset(AbstractSeq2SeqDataset):
 
     def collate_fn(self, batch) -> Dict[str, torch.Tensor]:
         """Call prepare_seq2seq_batch."""
-        rnd = torch.rand(1)
-        if rnd < 0.33:
-            tgt_lang = "en_XX"
-        elif rnd < 0.66:
-            tgt_lang = "cs_CZ"
-            tgt_lang = "fr_XX"
         batch_encoding: Dict[str, torch.Tensor] = self.tokenizer.prepare_seq2seq_batch(
             [x["src_texts"] for x in batch],
             tgt_texts=[x["tgt_texts"] for x in batch],
             max_length=self.max_source_length,
             max_target_length=self.max_target_length,
             return_tensors="pt",
-            src_lang="en_XX",
-            **self.dataset_kwargs,
-        ).data
-        
-        
-        batch_encoding_fre: Dict[str, torch.Tensor] = self.tokenizer.prepare_seq2seq_batch(
-            [x["src_texts_fre"] for x in batch],
-            tgt_texts=[x["tgt_texts_fre"] for x in batch],
-            max_length=self.max_source_length,
-            max_target_length=self.max_target_length,
-            return_tensors="pt",
-            src_lang="fr_XX",
             **self.dataset_kwargs,
         ).data
         batch_encoding["ids"] = torch.tensor([x["id"] for x in batch])
-        batch_encoding["labels_fre"] = batch_encoding_fre["labels"]
-        batch_encoding["input_ids_fre"] = batch_encoding_fre["input_ids"]
-        batch_encoding["attention_mask_fre"] = batch_encoding_fre["attention_mask"]
-        batch_encoding["tgt_lang"] = tgt_lang
         return batch_encoding
 
 
 class Seq2SeqDataCollator:
-    def __init__(self, tokenizer, tokenizer_bert, lang_dict, data_args, tpu_num_cores=None):
+    def __init__(self, tokenizer, tokenizer_bert, lang_dict, data_args, decoder_start_token_id, tpu_num_cores=None):
         self.tokenizer = tokenizer
         self.tokenizer_bert = tokenizer_bert
         self.pad_token_id = tokenizer.pad_token_id
         self.lang_codes = lang_dict
+        self.decoder_start_token_id = decoder_start_token_id
         assert (
             self.pad_token_id is not None
         ), f"pad_token_id is not defined for ({self.tokenizer.__class__.__name__}), it must be defined."
@@ -329,56 +325,46 @@ class Seq2SeqDataCollator:
                 target_langs.remove(key)
         tgt_lang = np.random.choice(target_langs, 1)[0]
         tgt_lang = self.lang_codes[tgt_lang]
+        main_lang = np.random.choice(langs, 1)[0]
         remaining_langs = list(set(list(self.lang_codes.keys())) - set(langs))
+        remaining_target_langs = list(set(list(self.lang_codes.keys())) - set(target_langs))
         batch_size = len(batch)
 
         self.dataset_kwargs["tgt_lang"] = tgt_lang
-        batch_encodings = {}
-        if hasattr(self.tokenizer, "prepare_seq2seq_batch"):
-            for lang in langs:
-                self.dataset_kwargs["src_lang"] = self.lang_codes[lang]
-                batch_encoding = self.tokenizer.prepare_seq2seq_batch(
-                    [x["src_texts"][lang] for x in batch],
-                    tgt_texts=[x["tgt_texts"][lang] for x in batch],
-                    max_length=self.data_args.max_source_length,
-                    max_target_length=self.data_args.max_target_length,
-                    padding="max_length" if self.tpu_num_cores is not None else "longest",  # TPU hack
-                    return_tensors="pt",
-                    **self.dataset_kwargs,
-                ).data
-                batch_encodings[lang] = batch_encoding
-
-            input_ids = {}
-            attention_mask = {}
-            labels = {}
-
-            for key, val in batch_encodings.items():
-                input_ids[key] = val["input_ids"]
-                attention_mask[key] = val["attention_mask"]
-                labels[key] = val["labels"]
-            
-            for lang in remaining_langs:
-                input_ids[lang] = None
-                attention_mask[lang] = input_ids[tgt_lang[0:2]][0].new_ones((batch_size,1))
+        input_ids = {}
+        attention_mask = {}
+        labels = {}
+        #if hasattr(self.tokenizer, "prepare_seq2seq_batch"):
+        #for lang in langs:
+        for lang in langs:
+            self.tokenizer.src_lang = self.lang_codes[lang]
+            batch_encoding = self.tokenizer([x["src_texts"][lang] for x in batch], max_length=self.data_args.max_source_length, padding=False, truncation=True)
+            input_ids[lang] = torch.tensor(batch_encoding["input_ids"])
+            attention_mask[lang] = torch.tensor(batch_encoding["attention_mask"])
+        for lang in remaining_langs:
+            input_ids[lang] = None
+            attention_mask[lang] = torch.ones((batch_size,1))
+        with self.tokenizer.as_target_tokenizer():
+            for lang in target_langs:
+                self.tokenizer.tgt_lang = self.lang_codes[lang]
+                label = self.tokenizer([x["tgt_texts"][lang] for x in batch], max_length=self.data_args.max_target_length, padding=False, truncation=True)
+                labels[lang] = torch.tensor(label["input_ids"])
+            for lang in remaining_target_langs:
                 labels[lang] = None
-
-
             
-        else:
-            input_ids = torch.stack([x["input_ids"] for x in batch])
-            attention_mask = torch.stack([x["attention_mask"] for x in batch])
-            labels = torch.stack([x["labels"] for x in batch])
-
-            labels = trim_batch(labels, self.pad_token_id)
-            input_ids, attention_mask = trim_batch(input_ids, self.pad_token_id, attention_mask=attention_mask)
-
+        #else:
+        #    input_ids = torch.stack([x["input_ids"] for x in batch])
+        #    attention_mask = torch.stack([x["attention_mask"] for x in batch])
+        #    labels = torch.stack([x["labels"] for x in batch])
+        #
+        #   labels = trim_batch(labels, self.pad_token_id)
+        #    input_ids, attention_mask = trim_batch(input_ids, self.pad_token_id, attention_mask=attention_mask)
         labels_mod = labels[tgt_lang[0:2]]
-
         if isinstance(self.tokenizer, T5Tokenizer):
             decoder_input_ids = self._shift_right_t5(labels_mod)
         else:
             decoder_input_ids = shift_tokens_right(labels_mod, self.pad_token_id)
-        
+
         # graph embeddings
         if batch[0]["embeddings"] is not None:
             embd_ids = torch.stack([x["embeddings"] for x in batch])
@@ -408,6 +394,7 @@ class Seq2SeqDataCollator:
             "target_lang": tgt_lang,
             "graph_embeddings": embd_ids,
             "bert_inputs": bert_inputs,
+            "main_lang": main_lang,
         }
         return batch
 
@@ -419,7 +406,6 @@ class Seq2SeqDataCollator:
         return shifted_input_ids
 
     def _encode(self, batch) -> Dict[str, torch.Tensor]:
-        self.dataset_kwargs["src_lang"] = "en_XX"
         batch_encoding = self.tokenizer.prepare_seq2seq_batch(
             [x["src_texts"] for x in batch],
             tgt_texts=[x["tgt_texts"] for x in batch],
@@ -528,7 +514,8 @@ def use_task_specific_params(model, task):
 
     if task_specific_params is not None:
         pars = task_specific_params.get(task, {})
-        logger.info(f"using task specific params for {task}: {pars}")
+        logger.info(f"setting model.config to task specific params for {task}:\n {pars}")
+        logger.info("note: command line args may override some of these")
         model.config.update(pars)
 
 
@@ -556,7 +543,7 @@ def save_git_info(folder_path: str) -> None:
 
 def save_json(content, path, indent=4, **json_dump_kwargs):
     with open(path, "w") as f:
-        json.dump(content, f, indent=indent, **json_dump_kwargs)
+        json.dump(content, f, indent=indent, sort_keys=True, **json_dump_kwargs)
 
 
 def load_json(path):
@@ -655,7 +642,7 @@ def freeze_embeds(model):
     """Freeze token embeddings and positional embeddings for bart, just token embeddings for t5."""
     model_type = model.config.model_type
 
-    if model_type == "t5":
+    if model_type in ["t5", "mt5"]:
         freeze_params(model.shared)
         for d in [model.encoder, model.decoder]:
             freeze_params(d.embed_tokens)
