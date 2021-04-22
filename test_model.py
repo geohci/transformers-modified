@@ -97,7 +97,8 @@ for i in range(len(embds)):
             remaining_langs.append(lang)
             continue
         src_lang = lang_code
-        batch_enc = tokenizer.prepare_seq2seq_batch(src_texts=[txt], src_lang = src_lang)
+        tokenizer.src_lang = src_lang
+        batch_enc = tokenizer([txt])
         batch_encodings[lang] = batch_enc
         available_langs.append(lang_code)    
     input_ids = {}

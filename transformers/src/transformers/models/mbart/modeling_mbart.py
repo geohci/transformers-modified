@@ -1134,6 +1134,9 @@ class MBartModel(MBartPreTrainedModel):
     def get_decoder(self):
         return self.decoder
 
+    def get_expand(self):
+        return self.expand
+
     @add_start_docstrings_to_model_forward(MBART_INPUTS_DOCSTRING)
     @add_code_sample_docstrings(
         tokenizer_class=_TOKENIZER_FOR_DOC,
@@ -1315,6 +1318,9 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
     def get_decoder(self):
         return self.model.get_decoder()
 
+    def get_expand(self):
+        return self.model.get_expand()
+
     def resize_token_embeddings(self, new_num_tokens: int) -> nn.Embedding:
         new_embeddings = super().resize_token_embeddings(new_num_tokens)
         self._resize_final_logits_bias(new_num_tokens)
@@ -1447,6 +1453,11 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
             "decoder_input_ids": decoder_input_ids,
             "attention_mask": attention_mask,
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
+            "target_lang": kwargs["target_lang"],
+            "main_lang": kwargs["main_lang"],
+            "graph_embeddings": kwargs["graph_embeddings"],
+            "bert_inputs": kwargs["bert_inputs"],
+            "bert_outputs": kwargs["bert_outputs"],
         }
 
     def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):
