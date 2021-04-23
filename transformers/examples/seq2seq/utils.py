@@ -324,8 +324,9 @@ class Seq2SeqDataCollator:
             if val == "no article":
                 target_langs.remove(key)
         tgt_lang = np.random.choice(target_langs, 1)[0]
+        main_lang = tgt_lang
         tgt_lang = self.lang_codes[tgt_lang]
-        main_lang = np.random.choice(langs, 1)[0]
+        #main_lang = np.random.choice(langs, 1)[0]
         remaining_langs = list(set(list(self.lang_codes.keys())) - set(langs))
         remaining_target_langs = list(set(list(self.lang_codes.keys())) - set(target_langs))
         batch_size = len(batch)
@@ -338,7 +339,7 @@ class Seq2SeqDataCollator:
         #for lang in langs:
         for lang in langs:
             self.tokenizer.src_lang = self.lang_codes[lang]
-            batch_encoding = self.tokenizer([x["src_texts"][lang] for x in batch], max_length=self.data_args.max_source_length, padding=False, truncation=True)
+            batch_encoding = self.tokenizer([x["src_texts"][lang] for x in batch], max_length=self.data_args.max_source_length, padding=True, truncation=True)
             input_ids[lang] = torch.tensor(batch_encoding["input_ids"])
             attention_mask[lang] = torch.tensor(batch_encoding["attention_mask"])
         for lang in remaining_langs:
