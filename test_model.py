@@ -98,7 +98,7 @@ for i in range(len(embds)):
             continue
         src_lang = lang_code
         tokenizer.src_lang = src_lang
-        batch_enc = tokenizer([txt], padding=True)
+        batch_enc = tokenizer([txt], padding=True, truncation=True)
         batch_encodings[lang] = batch_enc
         available_langs.append(lang_code)    
     input_ids = {}
@@ -132,6 +132,7 @@ for i in range(len(embds)):
             bert_outs = tokenizer_bert(
                 [targets[lang][i].strip()],
                 padding=True,
+                truncation=True,
                 return_tensors="pt",
             )
             bert_inputs[lang] = bert_outs
