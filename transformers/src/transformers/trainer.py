@@ -1483,7 +1483,7 @@ class Trainer:
                 for key, val in v.items():
                     if isinstance(val, torch.Tensor):
                         v[key] = val.to(self.args.device)
-                    elif isinstance(val, BatchEncoding):
+                    elif isinstance(val, BatchEncoding) or isinstance(val, dict):
                         for k1,v1 in val.items():
                             if isinstance(v1, torch.Tensor):
                                 val[k1] = v1.to(self.args.device)

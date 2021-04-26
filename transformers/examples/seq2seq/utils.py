@@ -379,7 +379,9 @@ class Seq2SeqDataCollator:
             for lang in target_langs:
                 bert_outs = self.tokenizer_bert(
                     [x["tgt_texts"][lang] for x in batch],
-                    max_length=self.data_args.max_source_length,     
+                    max_length=self.data_args.max_source_length,
+                    padding=True,
+                    truncation=True,     
                     return_tensors="pt",
                 )
                 bert_inputs[lang] = bert_outs
