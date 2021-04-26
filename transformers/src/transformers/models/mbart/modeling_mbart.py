@@ -1321,6 +1321,9 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
     def get_expand(self):
         return self.model.get_expand()
 
+    def get_model_bert(self):
+        return self.model_bert
+
     def resize_token_embeddings(self, new_num_tokens: int) -> nn.Embedding:
         new_embeddings = super().resize_token_embeddings(new_num_tokens)
         self._resize_final_logits_bias(new_num_tokens)
