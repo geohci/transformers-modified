@@ -423,33 +423,50 @@ class GenerationMixin:
         return bert_outputs
 
     def _prepare_encoder_decoder_kwargs_for_generation(
-        self, input_ids: torch.LongTensor, model_kwargs
+        self, input_ids: torch.LongTensor, baseline, model_kwargs
     ) -> Dict[str, Any]:
-        encoder = self.get_encoder()
-        expand = self.get_expand()
-        encoder_kwargs = {
-            argument: value for argument, value in model_kwargs.items() if not argument.startswith("decoder_")
-        }
-        attention_mask = encoder_kwargs.pop("attention_mask")
-        target_lang = encoder_kwargs.pop("target_lang")[0:2]
-        encoder_kwargs.pop("graph_embeddings")
-        encoder_kwargs.pop("bert_inputs")
-        
-        lang_out = torch.ones((attention_mask[target_lang].shape[0],1,1), device=attention_mask[target_lang].device)
-        lang_out = expand(lang_out)
-        encoder_outputs = {}
-        for lang, inputs in input_ids.items():
-            if inputs is not None:
-                enc_out = encoder(inputs, attention_mask=attention_mask[lang], return_dict=True, **encoder_kwargs)
-            else:
-                enc_out = BaseModelOutput(
-                    last_hidden_state = lang_out,
-                    hidden_states = None,
-                    attentions = None,
-                )
-            encoder_outputs[lang] = enc_out
-        model_kwargs["encoder_outputs"] = encoder_outputs
-        return model_kwargs
+        if baseline:
+            if "encoder_outputs" not in model_kwargs:
+            # retrieve encoder hidden states
+                encoder = self.get_encoder()
+                encoder_kwargs = {
+                    argument: value for argument, value in model_kwargs.items() if not argument.startswith("decoder_")
+                }
+                attention_mask = encoder_kwargs.pop("attention_mask")
+                target_lang = encoder_kwargs.pop("target_lang")[0:2]
+                attention_mask = attention_mask[target_lang]
+                encoder_kwargs.pop("graph_embeddings")
+                encoder_kwargs.pop("bert_inputs")
+                
+                model_kwargs["encoder_outputs"]: ModelOutput = encoder(input_ids[target_lang], attention_mask=attention_mask, return_dict=True, **encoder_kwargs)
+            return model_kwargs
+
+        else:
+            encoder = self.get_encoder()
+            expand = self.get_expand()
+            encoder_kwargs = {
+                argument: value for argument, value in model_kwargs.items() if not argument.startswith("decoder_")
+            }
+            attention_mask = encoder_kwargs.pop("attention_mask")
+            target_lang = encoder_kwargs.pop("target_lang")[0:2]
+            encoder_kwargs.pop("graph_embeddings")
+            encoder_kwargs.pop("bert_inputs")
+            
+            lang_out = torch.ones((attention_mask[target_lang].shape[0],1,1), device=attention_mask[target_lang].device)
+            lang_out = expand(lang_out)
+            encoder_outputs = {}
+            for lang, inputs in input_ids.items():
+                if inputs is not None:
+                    enc_out = encoder(inputs, attention_mask=attention_mask[lang], return_dict=True, **encoder_kwargs)
+                else:
+                    enc_out = BaseModelOutput(
+                        last_hidden_state = lang_out,
+                        hidden_states = None,
+                        attentions = None,
+                    )
+                encoder_outputs[lang] = enc_out
+            model_kwargs["encoder_outputs"] = encoder_outputs
+            return model_kwargs
 
     def _prepare_decoder_input_ids_for_generation(
         self, input_ids: torch.LongTensor, model_kwargs, decoder_start_token_id: int = None, bos_token_id: int = None
@@ -530,11 +547,16 @@ class GenerationMixin:
         
         if is_encoder_decoder:
             assert encoder_outputs is not None
-            for lang, enc_out in encoder_outputs.items():
-                enc_out["last_hidden_state"] = enc_out.last_hidden_state.index_select(0, expanded_return_idx)
-                encoder_outputs[lang] = enc_out
-            model_kwargs["encoder_outputs"] = encoder_outputs
-
+            if baseline:
+                encoder_outputs["last_hidden_state"] = encoder_outputs.last_hidden_state.index_select(
+                    0, expanded_return_idx.to(encoder_outputs.last_hidden_state.device)
+                )
+                model_kwargs["encoder_outputs"] = encoder_outputs
+            else:
+                for lang, enc_out in encoder_outputs.items():
+                    enc_out["last_hidden_state"] = enc_out.last_hidden_state.index_select(0, expanded_return_idx)
+                    encoder_outputs[lang] = enc_out
+                model_kwargs["encoder_outputs"] = encoder_outputs
 
         graph_embds = model_kwargs["graph_embeddings"]
         if graph_embds is not None:
@@ -763,6 +785,7 @@ class GenerationMixin:
         remove_invalid_values: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
         target_lang: Optional[str] = None,
+        baseline = False,
         **model_kwargs,
     ) -> Union[GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput, torch.LongTensor]:
         r"""
@@ -995,7 +1018,7 @@ class GenerationMixin:
 
         if self.config.is_encoder_decoder:
             # add encoder_outputs to model_kwargs
-            model_kwargs = self._prepare_encoder_decoder_kwargs_for_generation(input_ids, model_kwargs)
+            model_kwargs = self._prepare_encoder_decoder_kwargs_for_generation(input_ids, baseline, model_kwargs)
 
             # set input_ids as decoder_input_ids
             if "decoder_input_ids" in model_kwargs:
@@ -1096,6 +1119,7 @@ class GenerationMixin:
                 input_ids,
                 expand_size=num_return_sequences,
                 is_encoder_decoder=self.config.is_encoder_decoder,
+                baseline=baseline,
                 **model_kwargs,
             )
 
@@ -1134,7 +1158,7 @@ class GenerationMixin:
             )
             # interleave with `num_beams`
             input_ids, model_kwargs = self._expand_inputs_for_generation(
-                input_ids, expand_size=num_beams, is_encoder_decoder=self.config.is_encoder_decoder, **model_kwargs
+                input_ids, expand_size=num_beams, is_encoder_decoder=self.config.is_encoder_decoder, baseline=baseline, **model_kwargs
             )
             return self.beam_search(
                 input_ids,
@@ -1172,6 +1196,7 @@ class GenerationMixin:
                 input_ids,
                 expand_size=num_beams * num_return_sequences,
                 is_encoder_decoder=self.config.is_encoder_decoder,
+                baseline=baseline,
                 **model_kwargs,
             )
 
@@ -1214,7 +1239,7 @@ class GenerationMixin:
             )
             # interleave with `num_beams`
             input_ids, model_kwargs = self._expand_inputs_for_generation(
-                input_ids, expand_size=num_beams, is_encoder_decoder=self.config.is_encoder_decoder, **model_kwargs
+                input_ids, expand_size=num_beams, is_encoder_decoder=self.config.is_encoder_decoder, baseline=baseline, **model_kwargs
             )
             return self.group_beam_search(
                 input_ids,

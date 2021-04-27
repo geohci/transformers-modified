@@ -1481,13 +1481,15 @@ class MBartForConditionalGenerationBaseline(MBartPreTrainedModel):
         assert(bert_outputs is None)
         assert(bert_inputs is None)
         assert(graph_embeddings is None)
-        labels = labels[target_lang[0:2]]
-        input_ids = input_ids[target_lang[0:2]]
-        attention_mask = attention_mask[target_lang[0:2]]
+        if input_ids is not None:
+            input_ids = input_ids[target_lang[0:2]]
+        if attention_mask is not None:
+            attention_mask = attention_mask[target_lang[0:2]]
         
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if labels is not None:
+            labels = labels[target_lang[0:2]]
             if decoder_input_ids is None:
                 decoder_input_ids = shift_tokens_right(labels, self.config.pad_token_id)
 
@@ -1544,6 +1546,7 @@ class MBartForConditionalGenerationBaseline(MBartPreTrainedModel):
             "decoder_input_ids": decoder_input_ids,
             "attention_mask": attention_mask,
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
+            "target_lang": kwargs["target_lang"],
         }
 
     def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):
