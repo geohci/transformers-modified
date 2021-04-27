@@ -1,5 +1,6 @@
 from transformers import AutoTokenizer, AutoModelWithLMHead
 from transformers import MBartForConditionalGeneration, MBartTokenizer
+from transformers.models.mbart.modeling_mbart import MBartForConditionalGenerationBaseline
 from transformers import BertModel, BertTokenizer
 from transformers.tokenization_utils_base import BatchEncoding
 import torch
@@ -37,13 +38,16 @@ parser.add_argument("--use_graph_embds", help="whether to use graph embeddings",
 parser.add_argument("--langs", type=str, help="list of language codes")
 parser.add_argument("--data_dir", type=str, help="directory to store the data")
 parser.add_argument("--output_folder", type=str, help="path to the folder where to save outputs")
+parser.add_argument("--baseline", help="whether to use baseline model", action="store_true")
 
 args = parser.parse_args()
 
 if not os.path.exists(args.output_folder):
     os.makedirs(args.output_folder)
-
-model = MBartForConditionalGeneration.from_pretrained(args.model_path_or_name)
+if args.baseline:
+    model = MBartForConditionalGenerationBaseline.from_pretrained(args.model_path_or_name)
+else:
+    model = MBartForConditionalGeneration.from_pretrained(args.model_path_or_name)
 tokenizer = MBartTokenizer.from_pretrained(args.tokenizer_path)
 if args.bert_path is not None:
     tokenizer_bert = BertTokenizer.from_pretrained(args.bert_tokenizer)
