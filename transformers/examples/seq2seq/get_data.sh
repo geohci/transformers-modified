@@ -1,5 +1,5 @@
 python get_data.py \
-    --langs en_XX,cs_CZ,fr_XX,it_IT,fi_FI,de_DE,nl_XX,ro_RO,ru_RU,ja_XX \
+    --languages en_XX,cs_CZ,fr_XX,it_IT,fi_FI,de_DE,nl_XX,ro_RO,ru_RU,ja_XX \
     --num_train 100000 \
     --num_val 10000 \
     --num_test 10000 \

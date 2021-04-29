@@ -30,27 +30,25 @@ def prepare_inputs(inputs, device):
         return inputs
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--model_path_or_name", type=str, help="path to folder with trained model")
-parser.add_argument("--tokenizer_path", type=str, help="path to folder with tokenizer")
+parser.add_argument("--output_dir", type=str, help="directory where model is stored")
 parser.add_argument("--bert_path", default=None, type=str, help="path to folder with bert model (for summary embeddings)")
-parser.add_argument("--bert_tokenizer", default=None, type=str, help="path to folder bert tokenizer (for summary embeddings)")
 parser.add_argument("--use_graph_embds", help="whether to use graph embeddings", action="store_true")
-parser.add_argument("--langs", type=str, help="list of language codes")
+parser.add_argument("--languages", type=str, help="list of language codes")
 parser.add_argument("--data_dir", type=str, help="directory to store the data")
 parser.add_argument("--output_folder", type=str, help="path to the folder where to save outputs")
 parser.add_argument("--baseline", help="whether to use baseline model", action="store_true")
 
-args = parser.parse_args()
+args, uknown = parser.parse_known_args()
 
 if not os.path.exists(args.output_folder):
     os.makedirs(args.output_folder)
 if args.baseline:
-    model = MBartForConditionalGenerationBaseline.from_pretrained(args.model_path_or_name)
+    model = MBartForConditionalGenerationBaseline.from_pretrained(args.output_dir)
 else:
-    model = MBartForConditionalGeneration.from_pretrained(args.model_path_or_name)
-tokenizer = MBartTokenizer.from_pretrained(args.tokenizer_path)
+    model = MBartForConditionalGeneration.from_pretrained(args.output_dir)
+tokenizer = MBartTokenizer.from_pretrained(args.output_dir)
 if args.bert_path is not None:
-    tokenizer_bert = BertTokenizer.from_pretrained(args.bert_tokenizer)
+    tokenizer_bert = BertTokenizer.from_pretrained(args.bert_path)
     bert_model = BertModel.from_pretrained(args.bert_path)
     model.model_bert = bert_model
 
@@ -61,7 +59,7 @@ outputs = []
 
 sources = {}
 lang_dict = {}
-languages = args.langs.strip().split(',')
+languages = args.languages.strip().split(',')
 for lang in languages:
     lang_dict[lang[0:2]] = lang
 

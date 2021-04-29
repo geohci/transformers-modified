@@ -9,7 +9,7 @@ import numpy as np
 np.random.seed(0)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--langs", type=str, help="list of language codes")
+parser.add_argument("--languages", type=str, help="list of language codes")
 parser.add_argument("--num_train", type=int, help="number of samples in train set")
 parser.add_argument("--num_val", type=int, help="number of samples in validation set")
 parser.add_argument("--num_test", type=int, help="number of samples in test set")
@@ -18,10 +18,10 @@ parser.add_argument("--data_dir", type=str, help="directory to store the data")
 parser.add_argument("--embd_path", type=str, help="path to pretrained graph embeddings")
 parser.add_argument("--graph_path", type=str, help="path to wikidata graph relations")
 
-args = parser.parse_args()
+args, uknown = parser.parse_known_args()
 
 lang_dict = {}
-languages = args.langs.strip().split(',')
+languages = args.languages.strip().split(',')
 for lang in languages:
     lang_dict[lang[0:2]] = lang
 

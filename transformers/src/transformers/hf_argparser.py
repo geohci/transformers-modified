@@ -193,7 +193,8 @@ class HfArgumentParser(ArgumentParser):
             return (*outputs, remaining_args)
         else:
             if remaining_args:
-                raise ValueError(f"Some specified arguments are not used by the HfArgumentParser: {remaining_args}")
+                #raise ValueError(f"Some specified arguments are not used by the HfArgumentParser: {remaining_args}")
+                print("Some specified arguments are not used by the HfArgumentParser: {}".format(remaining_args))
 
             return (*outputs,)
 

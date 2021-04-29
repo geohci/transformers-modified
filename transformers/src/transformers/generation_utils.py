@@ -526,6 +526,7 @@ class GenerationMixin:
         is_encoder_decoder: bool = False,
         attention_mask: torch.LongTensor = None,
         encoder_outputs: ModelOutput = None,
+        baseline = False,
         **model_kwargs,
     ) -> Tuple[torch.LongTensor, Dict[str, Any]]:
         target_lang = model_kwargs["target_lang"][0:2]
