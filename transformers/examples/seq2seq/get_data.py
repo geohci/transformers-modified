@@ -44,6 +44,7 @@ lines = f.readlines()
 f.close()
 
 type_dict={}
+subclass_dict={}
 for i in range(len(lines)):
     line = lines[i].split()
     qid_source = line[0].strip(">").split("/")[-1]
@@ -56,8 +57,14 @@ for i in range(len(lines)):
             type_dict[qid_source] = curr_list
         except:
             type_dict[qid_source] = [qid_dest]
-    else:
-        continue
+    elif relation=="P279":
+        try:
+            curr_list = subclass_dict[qid_source]
+            curr_list.append(qid_dest)
+            subclass_dict[qid_source] = curr_list
+        except:
+            subclass_dict[qid_source] = [qid_dest]
+        
 del lines
 # calculate the embeddings
 embd_dict = {}
@@ -75,7 +82,23 @@ for key, value in type_dict.items():
         embedding = np.mean(np.array(embds), axis=0)
         embd_dict[key] = embedding
 
+subclass_embd_dict = {}
+for key, value in subclass_dict.items():
+    embds = []
+    for qid in value:
+        try:
+            embd = embd_file[qid]
+            embds.append(embd)
+        except:
+            continue
+    if len(embds) == 0:
+        subclass_embd_dict[key] = avg_embd
+    else:
+        embedding = np.mean(np.array(embds), axis=0)
+        subclass_embd_dict[key] = embedding
+
 del type_dict
+del subclass_dict
 
 articles = {}
 descriptions = {}
@@ -121,6 +144,7 @@ for lang, lang_code in lang_dict.items():
 articles_fin = {}
 descriptions_fin = {}
 embds_fin = []
+subclass_fin = []
 
 all_qids = []
 for lang, qids_lang in qids.items():
@@ -167,6 +191,12 @@ for qid in all_qids:
         embd = avg_embd
     embds_fin.append(embd)
 
+    try:
+        embd = subclass_embd_dict[qid]
+    except:
+        embd = avg_embd
+    subclass_fin.append(embd)
+
 if not os.path.exists(args.data_dir):
     os.makedirs(args.data_dir)
 
@@ -198,16 +228,25 @@ for lang, lang_code in lang_dict.items():
     f6.close()
 
 f = open(os.path.join(args.data_dir, "train.embd"), 'w', encoding='utf-8')
+f1 = open(os.path.join(args.data_dir, "train.subclass"), 'w', encoding='utf-8')
 for i in range(args.num_train):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
+    f1.write(" ".join(str(item) for item in subclass_fin[i]) + "\n")
 f.close()
+f1.close()
 
 f = open(os.path.join(args.data_dir, "val.embd"), 'w', encoding='utf-8')
+f1 = open(os.path.join(args.data_dir, "val.subclass"), 'w', encoding='utf-8')
 for i in range(args.num_train, args.num_train + args.num_val):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
+    f1.write(" ".join(str(item) for item in subclass_fin[i]) + "\n")
 f.close()
+f1.close()
 
 f = open(os.path.join(args.data_dir, "test.embd"), 'w', encoding='utf-8')
+f1 = open(os.path.join(args.data_dir, "test.subclass"), 'w', encoding='utf-8')
 for i in range(args.num_train + args.num_val, args.num_train + args.num_val + args.num_test):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
+    f1.write(" ".join(str(item) for item in subclass_fin[i]) + "\n")
 f.close()
+f1.close()

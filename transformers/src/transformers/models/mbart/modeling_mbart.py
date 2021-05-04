@@ -1358,7 +1358,14 @@ class MBartModel(MBartPreTrainedModel):
 
         #add graph embedding
         if graph_embeddings is not None:
-            graph_embeddings_mapped = self.graph_mapping(graph_embeddings)
+            # type
+            graph_embeddings_mapped = self.graph_mapping(graph_embeddings["type"])
+            graph_embeddings_mapped = torch.reshape(graph_embeddings_mapped, shape=(graph_embeddings_mapped.shape[0],1,graph_embeddings_mapped.shape[1]))
+            enc_outputs = torch.cat((enc_outputs,graph_embeddings_mapped), 1)
+            new_mask_column = torch.ones((attn_mask.shape[0], 1), device=enc_outputs.device)
+            attn_mask = torch.cat((attn_mask, new_mask_column), dim=1)
+            #subclass
+            graph_embeddings_mapped = self.graph_mapping(graph_embeddings["subclass"])
             graph_embeddings_mapped = torch.reshape(graph_embeddings_mapped, shape=(graph_embeddings_mapped.shape[0],1,graph_embeddings_mapped.shape[1]))
             enc_outputs = torch.cat((enc_outputs,graph_embeddings_mapped), 1)
             new_mask_column = torch.ones((attn_mask.shape[0], 1), device=enc_outputs.device)

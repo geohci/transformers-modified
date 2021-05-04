@@ -79,6 +79,10 @@ f = open(Path(args.data_dir).joinpath("test" + ".embd"), 'r', encoding='utf-8')
 embds = f.readlines()
 f.close()
 
+f = open(Path(args.data_dir).joinpath("test" + ".subclass"), 'r', encoding='utf-8')
+subclass = f.readlines()
+f.close()
+
 outputs = open(Path(args.output_folder).joinpath("outputs.txt"), 'w', encoding='utf-8')
 target_file = open(Path(args.output_folder).joinpath("mod_targets.txt"), 'w', encoding='utf-8')
 lang_file = open(Path(args.output_folder).joinpath("lang_list.txt"), 'w', encoding='utf-8')
@@ -123,8 +127,21 @@ for i in range(len(embds)):
         embds_line = np.array([float(x) for x in embd.split()])
         embds_line = embds_line.astype(np.float32)
         embds_line = torch.tensor([embds_line])
+
+        embd = subclass[i].strip()
+        subclass_line = np.array([float(x) for x in embd.split()])
+        subclass_line = subclass_line.astype(np.float32)
+        subclass_line = torch.tensor([subclass_line])
     else:
         embds_line = None
+        subclass_line = None
+
+    graph_embeddings = {}
+    if embds_line is None:
+        graph_embeddings = None
+    else:
+        graph_embeddings["type"] = embds_line
+        graph_embeddings["subclass"] = subclass_line
 
     #summary embeddings
     if args.bert_path is not None:
@@ -143,7 +160,7 @@ for i in range(len(embds)):
                 
     batch["input_ids"] = input_ids
     batch["attention_mask"] = attention_mask
-    batch["graph_embeddings"] = embds_line
+    batch["graph_embeddings"] = graph_embeddings
     batch["bert_inputs"] = bert_inputs
 
     batch = prepare_inputs(batch, device)

@@ -561,7 +561,10 @@ class GenerationMixin:
 
         graph_embds = model_kwargs["graph_embeddings"]
         if graph_embds is not None:
-            graph_embds = graph_embds.index_select(0, expanded_return_idx)
+            graph_embds_type = graph_embds["type"].index_select(0, expanded_return_idx)
+            graph_embds_subclass = graph_embds["subclass"].index_select(0, expanded_return_idx)
+            graph_embds["type"] = graph_embds_type
+            graph_embds["subclass"] = graph_embds_subclass
             model_kwargs["graph_embeddings"] = graph_embds
 
         bert_outs = model_kwargs["bert_outputs"]
