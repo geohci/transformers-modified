@@ -275,6 +275,7 @@ class Seq2SeqDataset(AbstractSeq2SeqDataset):
             source_lines[lang] = self.prefix + linecache.getline(str(self.src_files[lang]), index).rstrip("\n")
             tgt_lines[lang] = linecache.getline(str(self.tgt_files[lang]), index).rstrip("\n")
         embds_line = None
+        subclass_line = None
         if self.use_graph_embd and os.path.exists(self.embd_file):
             embd_line = linecache.getline(str(self.embd_file), index).rstrip("\n")
             embds_line = np.array([float(x) for x in embd_line.split()])
