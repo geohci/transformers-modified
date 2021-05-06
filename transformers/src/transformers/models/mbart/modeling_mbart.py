@@ -1421,6 +1421,7 @@ class MBartForConditionalGenerationBaseline(MBartPreTrainedModel):
     def __init__(self, config: MBartConfig):
         super().__init__(config)
         self.model = MBartModelBaseline(config)
+        self.model_bert = None
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
         self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
 
