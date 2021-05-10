@@ -10,9 +10,9 @@ np.random.seed(0)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--languages", type=str, help="list of language codes")
-parser.add_argument("--num_train", type=int, help="number of samples in train set")
-parser.add_argument("--num_val", type=int, help="number of samples in validation set")
-parser.add_argument("--num_test", type=int, help="number of samples in test set")
+parser.add_argument("--samples_train", type=int, help="number of samples in train set")
+parser.add_argument("--samples_val", type=int, help="number of samples in validation set")
+parser.add_argument("--samples_test", type=int, help="number of samples in test set")
 parser.add_argument("--path", type=str, help="path to the main folder containing data")
 parser.add_argument("--data_dir", type=str, help="directory to store the data")
 parser.add_argument("--embd_path", type=str, help="path to pretrained graph embeddings")
@@ -208,15 +208,15 @@ for lang, lang_code in lang_dict.items():
     f5 = open(os.path.join(args.data_dir, "test.source" + lang), 'w', encoding='utf-8')
     f6 = open(os.path.join(args.data_dir, "test.target" + lang), 'w', encoding='utf-8')
 
-    for i in range(args.num_train):
+    for i in range(args.samples_train):
 	    f1.write(articles_fin[lang][i] + "\n")
 	    f2.write(descriptions_fin[lang][i] + "\n")
 
-    for i in range(args.num_train, args.num_train + args.num_val):
+    for i in range(args.samples_train, args.samples_train + args.samples_val):
         f3.write(articles_fin[lang][i]+ "\n")
         f4.write(descriptions_fin[lang][i] + "\n")
 
-    for i in range(args.num_train + args.num_val, args.num_train + args.num_val + args.num_test):
+    for i in range(args.samples_train + args.samples_val, args.samples_train + args.samples_val + args.samples_test):
         f5.write(articles_fin[lang][i]+ "\n")
         f6.write(descriptions_fin[lang][i] + "\n")
 
@@ -229,7 +229,7 @@ for lang, lang_code in lang_dict.items():
 
 f = open(os.path.join(args.data_dir, "train.embd"), 'w', encoding='utf-8')
 f1 = open(os.path.join(args.data_dir, "train.subclass"), 'w', encoding='utf-8')
-for i in range(args.num_train):
+for i in range(args.samples_train):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
     f1.write(" ".join(str(item) for item in subclass_fin[i]) + "\n")
 f.close()
@@ -237,7 +237,7 @@ f1.close()
 
 f = open(os.path.join(args.data_dir, "val.embd"), 'w', encoding='utf-8')
 f1 = open(os.path.join(args.data_dir, "val.subclass"), 'w', encoding='utf-8')
-for i in range(args.num_train, args.num_train + args.num_val):
+for i in range(args.samples_train, args.samples_train + args.samples_val):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
     f1.write(" ".join(str(item) for item in subclass_fin[i]) + "\n")
 f.close()
@@ -245,7 +245,7 @@ f1.close()
 
 f = open(os.path.join(args.data_dir, "test.embd"), 'w', encoding='utf-8')
 f1 = open(os.path.join(args.data_dir, "test.subclass"), 'w', encoding='utf-8')
-for i in range(args.num_train + args.num_val, args.num_train + args.num_val + args.num_test):
+for i in range(args.samples_train + args.samples_val, args.samples_train + args.samples_val + args.samples_test):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
     f1.write(" ".join(str(item) for item in subclass_fin[i]) + "\n")
 f.close()
