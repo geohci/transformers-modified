@@ -147,7 +147,6 @@ class AbstractSeq2SeqDataset(Dataset):
 
         self.len_file = Path(data_dir).joinpath(type_path + ".len")
         self.embd_file = Path(data_dir).joinpath(type_path + ".embd")
-        self.subclass_file = Path(data_dir).joinpath(type_path + ".subclass")
         self.use_graph_embd = use_graph_embd
 
         if os.path.exists(self.len_file):
@@ -281,14 +280,8 @@ class Seq2SeqDataset(AbstractSeq2SeqDataset):
             embds_line = np.array([float(x) for x in embd_line.split()])
             embds_line = embds_line.astype(np.float32)
             embds_line = torch.tensor(embds_line)
-
-            embd_line = linecache.getline(str(self.subclass_file), index).rstrip("\n")
-            subclass_line = np.array([float(x) for x in embd_line.split()])
-            subclass_line = subclass_line.astype(np.float32)
-            subclass_line = torch.tensor(subclass_line)
-
             
-        return {"tgt_texts": tgt_lines, "src_texts": source_lines, "id": index - 1, "embeddings": embds_line, "subclass": subclass_line}
+        return {"tgt_texts": tgt_lines, "src_texts": source_lines, "id": index - 1, "embeddings": embds_line}
 
     def collate_fn(self, batch) -> Dict[str, torch.Tensor]:
         """Call prepare_seq2seq_batch."""
@@ -375,20 +368,10 @@ class Seq2SeqDataCollator:
             decoder_input_ids = shift_tokens_right(labels_mod, self.pad_token_id)
 
         # graph embeddings
-        graph_embeddings = {}
         if batch[0]["embeddings"] is not None:
             embd_ids = torch.stack([x["embeddings"] for x in batch])
         else:
             embd_ids = None
-        if batch[0]["subclass"] is not None:
-            subclass_ids = torch.stack([x["subclass"] for x in batch])
-        else:
-            subclass_ids = None
-        if embd_ids is not None:
-            graph_embeddings["type"] = embd_ids
-            graph_embeddings["subclass"] = subclass_ids
-        else:
-            graph_embeddings = None
 
         #summary embeddings
         if self.tokenizer_bert is not None:
@@ -413,7 +396,7 @@ class Seq2SeqDataCollator:
             "decoder_input_ids": decoder_input_ids,
             "labels": labels,
             "target_lang": tgt_lang,
-            "graph_embeddings": graph_embeddings,
+            "graph_embeddings": embd_ids,
             "bert_inputs": bert_inputs,
             "main_lang": main_lang,
         }
