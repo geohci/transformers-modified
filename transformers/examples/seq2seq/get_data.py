@@ -121,6 +121,7 @@ for lang, lang_code in lang_dict.items():
 articles_fin = {}
 descriptions_fin = {}
 embds_fin = []
+qids_fin = []
 
 all_qids = []
 for lang, qids_lang in qids.items():
@@ -160,6 +161,7 @@ for qid in all_qids:
             articles_fin[lang].pop()
             descriptions_fin[lang].pop()
         continue
+    qids_fin.append(qid)
 
     try:
         embd = embd_dict[qid]
@@ -198,16 +200,25 @@ for lang, lang_code in lang_dict.items():
     f6.close()
 
 f = open(os.path.join(args.data_dir, "train.embd"), 'w', encoding='utf-8')
+f1 = open(os.path.join(args.data_dir, "train.qid"), 'w', encoding='utf-8')
 for i in range(args.samples_train):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
+    f1.write(qid "\n")
 f.close()
+f1.close()
 
 f = open(os.path.join(args.data_dir, "val.embd"), 'w', encoding='utf-8')
+f1 = open(os.path.join(args.data_dir, "val.qid"), 'w', encoding='utf-8')
 for i in range(args.samples_train, args.samples_train + args.samples_val):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
+    f1.write(qid "\n")
 f.close()
+f1.close()
 
 f = open(os.path.join(args.data_dir, "test.embd"), 'w', encoding='utf-8')
+f1 = open(os.path.join(args.data_dir, "test.qid"), 'w', encoding='utf-8')
 for i in range(args.samples_train + args.samples_val, args.samples_train + args.samples_val + args.samples_test):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
+    f1.write(qid "\n")
 f.close()
+f1.close()
