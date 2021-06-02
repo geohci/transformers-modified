@@ -203,7 +203,7 @@ f = open(os.path.join(args.data_dir, "train.embd"), 'w', encoding='utf-8')
 f1 = open(os.path.join(args.data_dir, "train.qid"), 'w', encoding='utf-8')
 for i in range(args.samples_train):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
-    f1.write(qid "\n")
+    f1.write(qid + "\n")
 f.close()
 f1.close()
 
@@ -211,7 +211,7 @@ f = open(os.path.join(args.data_dir, "val.embd"), 'w', encoding='utf-8')
 f1 = open(os.path.join(args.data_dir, "val.qid"), 'w', encoding='utf-8')
 for i in range(args.samples_train, args.samples_train + args.samples_val):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
-    f1.write(qid "\n")
+    f1.write(qid + "\n")
 f.close()
 f1.close()
 
@@ -219,6 +219,6 @@ f = open(os.path.join(args.data_dir, "test.embd"), 'w', encoding='utf-8')
 f1 = open(os.path.join(args.data_dir, "test.qid"), 'w', encoding='utf-8')
 for i in range(args.samples_train + args.samples_val, args.samples_train + args.samples_val + args.samples_test):
     f.write(" ".join(str(item) for item in embds_fin[i]) + "\n")
-    f1.write(qid "\n")
+    f1.write(qid + "\n")
 f.close()
 f1.close()
