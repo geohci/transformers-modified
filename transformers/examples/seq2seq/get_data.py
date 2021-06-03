@@ -20,7 +20,7 @@ parser.add_argument("--graph_path", type=str, help="path to wikidata graph relat
 
 args, uknown = parser.parse_known_args()
 
-if os.path.exists(args.data_dir) and len(os.path.listdir(args.datadir) != 0):
+if os.path.exists(args.data_dir) and len(os.listdir(args.datadir) != 0):
     print("Data already loaded")
     quit()
 
