@@ -1096,6 +1096,8 @@ class MBartModelBaseline(MBartPreTrainedModel):
         self.encoder = MBartEncoder(config, self.shared)
         self.decoder = MBartDecoder(config, self.shared)
 
+        self.graph_mapping = nn.Linear(128, config.d_model)
+
         self.init_weights()
 
     def get_input_embeddings(self):
@@ -1136,6 +1138,7 @@ class MBartModelBaseline(MBartPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
         target_lang=None,
+        graph_embeddings=None,
     ):
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -1167,11 +1170,21 @@ class MBartModelBaseline(MBartPreTrainedModel):
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
 
+        enc_outputs = encoder_outputs[0]
+
+        #add graph embedding
+        if graph_embeddings is not None:
+            graph_embeddings_mapped = self.graph_mapping(graph_embeddings)
+            graph_embeddings_mapped = torch.reshape(graph_embeddings_mapped, shape=(graph_embeddings_mapped.shape[0],1,graph_embeddings_mapped.shape[1]))
+            enc_outputs = torch.cat((enc_outputs,graph_embeddings_mapped), 1)
+            new_mask_column = torch.ones((attention_mask.shape[0], 1), device=enc_outputs.device)
+            attention_mask = torch.cat((attention_mask, new_mask_column), dim=1)
+
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids,
             attention_mask=decoder_attention_mask,
-            encoder_hidden_states=encoder_outputs[0],
+            encoder_hidden_states=enc_outputs,
             encoder_attention_mask=attention_mask,
             head_mask=decoder_head_mask,
             encoder_head_mask=head_mask,
@@ -1481,7 +1494,6 @@ class MBartForConditionalGenerationBaseline(MBartPreTrainedModel):
         """
         assert(bert_outputs is None)
         assert(bert_inputs is None)
-        assert(graph_embeddings is None)
         if input_ids is not None:
             input_ids = input_ids[target_lang[0:2]]
         if attention_mask is not None:
@@ -1509,6 +1521,7 @@ class MBartForConditionalGenerationBaseline(MBartPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            graph_embeddings=graph_embeddings,
         )
         lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
 
@@ -1548,6 +1561,7 @@ class MBartForConditionalGenerationBaseline(MBartPreTrainedModel):
             "attention_mask": attention_mask,
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
             "target_lang": kwargs["target_lang"],
+            "graph_embeddings": kwargs["graph_embeddings"],
         }
 
     def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):
