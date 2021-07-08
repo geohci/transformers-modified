@@ -1,6 +1,6 @@
 from transformers import AutoTokenizer, AutoModelWithLMHead
 from transformers import MBartForConditionalGeneration, MBartTokenizer
-from transformers.models.mbart.modeling_mbart import MBartForConditionalGenerationBaseline
+from transformers.models.mbart.modeling_mbart import MBartForConditionalGenerationBaseline, MBartFourDecodersConditional
 from transformers import BertModel, BertTokenizer
 from transformers.tokenization_utils_base import BatchEncoding
 import torch
@@ -37,6 +37,7 @@ parser.add_argument("--languages", type=str, help="list of language codes")
 parser.add_argument("--data_dir", type=str, help="directory to store the data")
 parser.add_argument("--output_folder", type=str, help="path to the folder where to save outputs")
 parser.add_argument("--baseline", help="whether to use baseline model", action="store_true")
+parser.add_argument("--fourdecoders", help="whether to use four decoders model", action="store_true")
 
 args, uknown = parser.parse_known_args()
 
@@ -44,6 +45,8 @@ if not os.path.exists(args.output_folder):
     os.makedirs(args.output_folder)
 if args.baseline:
     model = MBartForConditionalGenerationBaseline.from_pretrained(args.output_dir)
+elif args.fourdecoders:
+    model = MBartFourDecodersConditional.from_pretrained(args.output_dir)
 else:
     model = MBartForConditionalGeneration.from_pretrained(args.output_dir)
 tokenizer = MBartTokenizer.from_pretrained(args.output_dir)
@@ -120,9 +123,12 @@ for i in range(len(embds)):
     #graph embeddings
     if args.use_graph_embds:
         embd = embds[i].strip()
-        embds_line = np.array([float(x) for x in embd.split()])
-        embds_line = embds_line.astype(np.float32)
-        embds_line = torch.tensor([embds_line])
+        if embd == "0":
+            embds_line = None
+        else:
+            embds_line = np.array([float(x) for x in embd.split()])
+            embds_line = embds_line.astype(np.float32)
+            embds_line = torch.tensor([embds_line])
     else:
         embds_line = None
 

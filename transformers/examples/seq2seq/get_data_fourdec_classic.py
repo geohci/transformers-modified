@@ -167,6 +167,8 @@ for qid in all_qids:
         embd = embd_dict[qid]
     except:
         embd = avg_embd
+    if (embd==avg_embd).all():
+        embd = [0]
     embds_fin.append(embd)
 
 if not os.path.exists(args.data_dir):

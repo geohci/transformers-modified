@@ -1765,6 +1765,455 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
         return reordered_past
 
 
+class MBartFourDecoders(MBartPreTrainedModel):
+    def __init__(self, config: MBartConfig):
+        super().__init__(config)
+
+        padding_idx, vocab_size = config.pad_token_id, config.vocab_size
+        self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
+
+        self.encoder = MBartEncoder(config, self.shared)
+
+        self.expand = nn.Linear(1, config.d_model)
+        self.mapping = MBartAttention(config.d_model, config.decoder_attention_heads, dropout=config.attention_dropout, is_decoder=True)
+        self.norm = nn.LayerNorm(config.d_model)
+
+        self.dropout = config.dropout
+        self.activation_fn = ACT2FN[config.activation_function]
+        self.activation_dropout = config.activation_dropout
+
+        self.embed_dim = config.d_model
+        self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
+        self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
+        self.final_layer_norm = nn.LayerNorm(self.embed_dim)
+
+        self.graph_mapping = nn.Linear(128, config.d_model)
+        self.bert_mapping = nn.Linear(768, config.d_model)
+
+        self.decoder1 = MBartDecoder(config, self.shared) # just text
+        self.decoder2 = MBartDecoder(config, self.shared) # text + graph
+        self.decoder3 = MBartDecoder(config, self.shared) # text + summary
+        self.decoder4 = MBartDecoder(config, self.shared) # full model
+
+        self.init_weights()
+
+    def get_input_embeddings(self):
+        return self.shared
+
+    def set_input_embeddings(self, value):
+        self.shared = value
+        self.encoder.embed_tokens = self.shared
+        self.decoder.embed_tokens = self.shared
+
+    def get_encoder(self):
+        return self.encoder
+
+    def get_decoder1(self):
+        return self.decoder1
+
+    def get_decoder2(self):
+        return self.decoder2
+
+    def get_decoder3(self):
+        return self.decoder3
+
+    def get_decoder4(self):
+        return self.decoder4
+
+    def get_expand(self):
+        return self.expand
+
+    #@add_start_docstrings_to_model_forward(MBART_INPUTS_DOCSTRING)
+    #@add_code_sample_docstrings(
+    #    tokenizer_class=_TOKENIZER_FOR_DOC,
+    #    checkpoint=_CHECKPOINT_FOR_DOC,
+    #    output_type=Seq2SeqModelOutput,
+    #    config_class=_CONFIG_FOR_DOC,
+    #)
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        decoder_input_ids=None,
+        decoder_attention_mask=None,
+        head_mask=None,
+        decoder_head_mask=None,
+        encoder_outputs=None,
+        past_key_values=None,
+        inputs_embeds=None,
+        decoder_inputs_embeds=None,
+        use_cache=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+        target_lang=None,
+        main_lang=None,
+        graph_embeddings=None,
+        bert_outputs=None,
+    ):
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        # different to other models, MBart automatically creates decoder_input_ids from
+        # input_ids if no decoder_input_ids are provided
+        if decoder_input_ids is None and decoder_inputs_embeds is None:
+            decoder_input_ids = shift_tokens_right(input_ids, self.config.pad_token_id)
+
+        assert(target_lang is not None)
+        assert(main_lang is not None)
+
+        
+        if encoder_outputs is None:
+            encoder_outputs = {}
+            for lang, input_ids_val in input_ids.items():
+                if input_ids_val is not None:
+                    encoder_outputs_val = self.encoder(
+                        input_ids=input_ids_val,
+                        attention_mask=attention_mask[lang],
+                        head_mask=head_mask,
+                        inputs_embeds=inputs_embeds,
+                        output_attentions=output_attentions,
+                        output_hidden_states=output_hidden_states,
+                        return_dict=return_dict,
+                    )
+                
+                    encoder_outputs[lang] = encoder_outputs_val
+        # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=False
+        elif return_dict:
+            for key, encoder_outputs_val in encoder_outputs.items():
+                if not isinstance(encoder_outputs_val, BaseModelOutput):
+                    encoder_outputs_val = BaseModelOutput(
+                        last_hidden_state=encoder_outputs_val[0],
+                        hidden_states=encoder_outputs_val[1] if len(encoder_outputs_val) > 1 else None,
+                        attentions=encoder_outputs_val[2] if len(encoder_outputs_val) > 2 else None,
+                    )
+                    encoder_outputs[key] = encoder_outputs_val
+
+        key, query, mask, attn_mask = None, None, None, None
+        enc_outputs_list = []
+
+        query_main = encoder_outputs[main_lang][0]
+        attn_mask = attention_mask[main_lang]
+
+        for lang, key in encoder_outputs.items():
+            key = key[0]
+            mask = attention_mask[lang]
+            query = query_main
+
+            mask = 1.0 - mask
+
+            enc_outputs, att_weight, _ = self.mapping(hidden_states=query, key_value_states=key, output_attentions=output_attentions)
+            enc_outputs = enc_outputs + query
+            enc_outputs = self.norm(enc_outputs)
+
+            residual = enc_outputs
+            enc_outputs = self.activation_fn(self.fc1(enc_outputs))
+            enc_outputs = F.dropout(enc_outputs, p=self.activation_dropout, training=self.training)
+            enc_outputs = self.fc2(enc_outputs)
+            enc_outputs = F.dropout(enc_outputs, p=self.dropout, training=self.training)
+            enc_outputs = residual + enc_outputs
+            enc_outputs = self.final_layer_norm(enc_outputs)
+
+            enc_outputs_list.append(enc_outputs)
+
+        
+        enc_outputs = torch.mean(torch.stack(enc_outputs_list), dim=0)
+
+        #add graph embedding
+        if graph_embeddings is not None:
+            graph_embeddings_mapped = self.graph_mapping(graph_embeddings)
+            graph_embeddings_mapped = torch.reshape(graph_embeddings_mapped, shape=(graph_embeddings_mapped.shape[0],1,graph_embeddings_mapped.shape[1]))
+            enc_outputs = torch.cat((enc_outputs,graph_embeddings_mapped), 1)
+            new_mask_column = torch.ones((attn_mask.shape[0], 1), device=enc_outputs.device)
+            attn_mask = torch.cat((attn_mask, new_mask_column), dim=1)
+
+        #adding summary embedding
+        if bert_outputs is not None:
+            bert_outputs = self.bert_mapping(bert_outputs)
+            bert_outputs = torch.reshape(bert_outputs, shape=(bert_outputs.shape[0], 1, bert_outputs.shape[1]))
+            enc_outputs = torch.cat((enc_outputs, bert_outputs), 1)
+            new_mask_column = torch.ones((attn_mask.shape[0], 1), device=enc_outputs.device)
+            attn_mask = torch.cat((attn_mask, new_mask_column), dim=1)
+
+        # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
+        if graph_embeddings is None and bert_outputs is None:
+            #dec 4
+            decoder_outputs = self.decoder4(
+                input_ids=decoder_input_ids,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=enc_outputs,
+                encoder_attention_mask=attn_mask,
+                head_mask=decoder_head_mask,
+                encoder_head_mask=head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        elif graph_embeddings is None and bert_outputs is not None:
+            decoder_outputs = self.decoder3(
+                input_ids=decoder_input_ids,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=enc_outputs,
+                encoder_attention_mask=attn_mask,
+                head_mask=decoder_head_mask,
+                encoder_head_mask=head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        elif graph_embeddings is not None and bert_outputs is None:
+            decoder_outputs = self.decoder2(
+                input_ids=decoder_input_ids,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=enc_outputs,
+                encoder_attention_mask=attn_mask,
+                head_mask=decoder_head_mask,
+                encoder_head_mask=head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+        else:
+            decoder_outputs = self.decoder1(
+                input_ids=decoder_input_ids,
+                attention_mask=decoder_attention_mask,
+                encoder_hidden_states=enc_outputs,
+                encoder_attention_mask=attn_mask,
+                head_mask=decoder_head_mask,
+                encoder_head_mask=head_mask,
+                past_key_values=past_key_values,
+                inputs_embeds=decoder_inputs_embeds,
+                use_cache=use_cache,
+                output_attentions=output_attentions,
+                output_hidden_states=output_hidden_states,
+                return_dict=return_dict,
+            )
+
+        
+
+        if not return_dict:
+            return decoder_outputs + encoder_outputs
+
+        return Seq2SeqModelOutput(
+            last_hidden_state=decoder_outputs.last_hidden_state,
+            past_key_values=decoder_outputs.past_key_values,
+            decoder_hidden_states=decoder_outputs.hidden_states,
+            decoder_attentions=decoder_outputs.attentions,
+            cross_attentions=decoder_outputs.cross_attentions,
+            encoder_last_hidden_state=encoder_outputs[target_lang[0:2]].last_hidden_state,
+            encoder_hidden_states=encoder_outputs[target_lang[0:2]].hidden_states,
+            encoder_attentions=encoder_outputs[target_lang[0:2]].attentions,
+        )
+
+class MBartFourDecodersConditional(MBartPreTrainedModel):
+    base_model_prefix = "model"
+    _keys_to_ignore_on_load_missing = [
+        r"final_logits_bias",
+        r"encoder\.version",
+        r"decoder\.version",
+        r"lm_head\.weight",
+    ]
+
+    def __init__(self, config: MBartConfig):
+        super().__init__(config)
+        self.model = MBartFourDecoders(config)
+        self.model_bert = None
+        self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
+        self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
+
+        self.init_weights()
+
+    def get_encoder(self):
+        return self.model.get_encoder()
+
+    def get_decoder1(self):
+        return self.decoder1
+
+    def get_decoder2(self):
+        return self.decoder2
+
+    def get_decoder3(self):
+        return self.decoder3
+
+    def get_decoder4(self):
+        return self.decoder4
+
+    def get_expand(self):
+        return self.model.get_expand()
+
+    def get_model_bert(self):
+        return self.model_bert
+
+    def resize_token_embeddings(self, new_num_tokens: int) -> nn.Embedding:
+        new_embeddings = super().resize_token_embeddings(new_num_tokens)
+        self._resize_final_logits_bias(new_num_tokens)
+        return new_embeddings
+
+    def _resize_final_logits_bias(self, new_num_tokens: int) -> None:
+        old_num_tokens = self.final_logits_bias.shape[-1]
+        if new_num_tokens <= old_num_tokens:
+            new_bias = self.final_logits_bias[:, :new_num_tokens]
+        else:
+            extra_bias = torch.zeros((1, new_num_tokens - old_num_tokens), device=self.final_logits_bias.device)
+            new_bias = torch.cat([self.final_logits_bias, extra_bias], dim=1)
+        self.register_buffer("final_logits_bias", new_bias)
+
+    def get_output_embeddings(self):
+        return self.lm_head
+
+    def set_output_embeddings(self, new_embeddings):
+        self.lm_head = new_embeddings
+
+    @add_start_docstrings_to_model_forward(MBART_INPUTS_DOCSTRING)
+    @replace_return_docstrings(output_type=Seq2SeqLMOutput, config_class=_CONFIG_FOR_DOC)
+    @add_end_docstrings(MBART_GENERATION_EXAMPLE)
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        decoder_input_ids=None,
+        decoder_attention_mask=None,
+        head_mask=None,
+        decoder_head_mask=None,
+        encoder_outputs=None,
+        past_key_values=None,
+        inputs_embeds=None,
+        decoder_inputs_embeds=None,
+        labels=None,
+        use_cache=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+        target_lang=None,
+        main_lang=None,
+        graph_embeddings=None,
+        bert_inputs=None,
+        bert_outputs=None,
+    ):
+        r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
+            Labels for computing the masked language modeling loss. Indices should either be in ``[0, ...,
+            config.vocab_size]`` or -100 (see ``input_ids`` docstring). Tokens with indices set to ``-100`` are ignored
+            (masked), the loss is only computed for the tokens with labels in ``[0, ..., config.vocab_size]``.
+
+        Returns:
+
+        """
+        assert(self.model_bert is not None)
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        if labels is not None:
+            labels = labels[target_lang[0:2]]
+
+        if labels is not None:
+            if decoder_input_ids is None:
+                decoder_input_ids = shift_tokens_right(labels, self.config.pad_token_id)
+
+        bert_outputs_list = []
+        if (bert_outputs is None):
+            if bert_inputs is not None:
+                for lang, bert_in in bert_inputs.items():
+                    bert_outs = self.model_bert(**bert_in)
+                    bert_outs = torch.mean(bert_outs.last_hidden_state,dim=1)
+                    bert_outputs_list.append(bert_outs)
+                if len(bert_outputs_list) == 0:
+                    bert_outputs = torch.zeros((1,768), device=attention_mask[target_lang[0:2]].device)
+                else:
+                    bert_outputs = torch.mean(torch.stack(bert_outputs_list), dim=0)
+            else:
+                bert_outputs = None
+
+
+        outputs = self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            decoder_input_ids=decoder_input_ids,
+            encoder_outputs=encoder_outputs,
+            decoder_attention_mask=decoder_attention_mask,
+            head_mask=head_mask,
+            decoder_head_mask=decoder_head_mask,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            decoder_inputs_embeds=decoder_inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+            target_lang=target_lang,
+            main_lang=main_lang,
+            graph_embeddings=graph_embeddings,
+            bert_outputs=bert_outputs,
+        )
+        lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
+
+        masked_lm_loss = None
+        if labels is not None:
+            loss_fct = CrossEntropyLoss()
+            masked_lm_loss = loss_fct(lm_logits.view(-1, self.config.vocab_size), labels.view(-1))
+
+        if not return_dict:
+            output = (lm_logits,) + outputs[1:]
+            return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
+
+        return Seq2SeqLMOutput(
+            loss=masked_lm_loss,
+            logits=lm_logits,
+            past_key_values=outputs.past_key_values,
+            decoder_hidden_states=outputs.decoder_hidden_states,
+            decoder_attentions=outputs.decoder_attentions,
+            cross_attentions=outputs.cross_attentions,
+            encoder_last_hidden_state=outputs.encoder_last_hidden_state,
+            encoder_hidden_states=outputs.encoder_hidden_states,
+            encoder_attentions=outputs.encoder_attentions,
+        )
+
+    def prepare_inputs_for_generation(
+        self, decoder_input_ids, past=None, attention_mask=None, use_cache=None, encoder_outputs=None, **kwargs
+    ):
+        # cut decoder_input_ids if past is used
+        if past is not None:
+            decoder_input_ids = decoder_input_ids[:, -1:]
+
+        return {
+            "input_ids": None,  # encoder_outputs is defined. input_ids not needed
+            "encoder_outputs": encoder_outputs,
+            "past_key_values": past,
+            "decoder_input_ids": decoder_input_ids,
+            "attention_mask": attention_mask,
+            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
+            "target_lang": kwargs["target_lang"],
+            "main_lang": kwargs["main_lang"],
+            "graph_embeddings": kwargs["graph_embeddings"],
+            "bert_inputs": kwargs["bert_inputs"],
+            "bert_outputs": kwargs["bert_outputs"],
+        }
+
+    def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):
+        return shift_tokens_right(labels, self.config.pad_token_id)
+
+    @staticmethod
+    def _reorder_cache(past, beam_idx):
+        reordered_past = ()
+        for layer_past in past:
+            # cached cross_attention states don't have to be reordered -> they are always the same
+            reordered_past += (
+                tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
+            )
+        return reordered_past
+
+
 @add_start_docstrings(
     """
     MBart model with a sequence classification/head on top (a linear layer on top of the pooled output) e.g. for GLUE

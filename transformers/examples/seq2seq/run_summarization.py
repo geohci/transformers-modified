@@ -45,8 +45,8 @@ from transformers import (
     Seq2SeqTrainingArguments,
     set_seed,
 )
-from transformers.models.mbart.modeling_mbart import MBartForConditionalGenerationBaseline
-from utils import Seq2SeqDataset, Seq2SeqDataCollator, freeze_embeds, freeze_params
+from transformers.models.mbart.modeling_mbart import MBartForConditionalGenerationBaseline, MBartFourDecodersConditional
+from utils import Seq2SeqDataset, Seq2SeqDataCollator, freeze_embeds, freeze_params, Seq2SeqDatasetFourDecoders, Seq2SeqDataCollatorFourDecoders
 from transformers.file_utils import is_offline_mode
 from transformers.trainer_utils import get_last_checkpoint, is_main_process
 from transformers.utils import check_min_version
@@ -110,6 +110,7 @@ class ModelArguments:
     freeze_encoder: bool = field(default=False, metadata={"help": "Whether tp freeze the encoder."})
     freeze_embeds: bool = field(default=False, metadata={"help": "Whether  to freeze the embeddings."})
     baseline: bool = field(default=False, metadata={"help":"Whether to use baseline model"})
+    fourdecoders: bool = field(default=False, metadata={"help":"Whether to use model with 4 decoders"})
 
 
 
@@ -363,6 +364,30 @@ def main():
             revision=model_args.model_revision,
             use_auth_token=True if model_args.use_auth_token else None,
         )
+    elif model_args.fourdecoders:
+        model_baseline = MBartForConditionalGenerationBaseline.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+        decoder = model_baseline.model.decoder
+        del model_baseline
+        model = MBartFourDecodersConditional.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+        model.model.decoder1 = decoder
+        model.model.decoder2 = decoder
+        model.model.decoder3 = decoder
+        model.model.decoder4 = decoder
+        del decoder
     else:
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
@@ -376,7 +401,7 @@ def main():
     
     tokenizer_bert = None
 
-    if model_args.bert_path is not None:
+    if model_args.bert_path is not None or model_args.fourdecoders:
         config_bert = BertConfig.from_pretrained(
             model_args.bert_path,
         )
@@ -400,7 +425,7 @@ def main():
             model.config.decoder_start_token_id = tokenizer.convert_tokens_to_ids(data_args.tgt_lang)
 
     if model_args.freeze_embeds:
-        freeze_embeds(model)
+        freeze_embeds(model, model_args.fourdecoders)
     if model_args.freeze_encoder:
         freeze_params(model.get_encoder())
         #assert_all_frozen(model.get_encoder())
@@ -421,8 +446,10 @@ def main():
     #
     # In distributed training, the load_dataset function guarantee that only one local process can concurrently
     # download the dataset.
+    if model_args.fourdecoders:
+        model_args.use_graph_embds = True
     if data_args.data_dir is not None:
-        dataset_class = Seq2SeqDataset
+        dataset_class = Seq2SeqDatasetFourDecoders
         # Get datasets
         train_dataset = (
             dataset_class(
@@ -601,7 +628,7 @@ def main():
     # Data collator
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     if data_args.data_dir is not None:
-        data_collator = Seq2SeqDataCollator(tokenizer, tokenizer_bert, lang_dict, data_args, model.config.decoder_start_token_id, training_args.tpu_num_cores)
+        data_collator = Seq2SeqDataCollatorFourDecoders(tokenizer, tokenizer_bert, lang_dict, data_args, model.config.decoder_start_token_id, training_args.tpu_num_cores)
     else:
         data_collator = DataCollatorForSeq2Seq(
             tokenizer,

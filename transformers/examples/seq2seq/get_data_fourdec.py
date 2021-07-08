@@ -130,7 +130,15 @@ for lang, qids_lang in qids.items():
 np.random.shuffle(all_qids)
 
 for qid in all_qids:
-    desc_flag = True
+    try:
+        embd = embd_dict[qid]
+        if (embd == avg_embd).all():
+            continue
+    except:
+        continue
+
+
+    desc_flag = 0
     for lang, lang_code in lang_dict.items():
         try:
             index = qid_dicts[lang][qid]
@@ -140,7 +148,7 @@ for qid in all_qids:
             extract = articles[lang][index]
             if descriptions[lang][index] is not None:
                 description = descriptions[lang][index]
-                desc_flag = False
+                desc_flag += 1
             else:
                 description = "no article"
         else:
@@ -155,22 +163,48 @@ for qid in all_qids:
         except:
             articles_fin[lang] = [extract]
             descriptions_fin[lang] = [description]
-    if desc_flag:
+    if desc_flag <= 1:
         # remove the sample with no descriptions
         for lang, lang_code in lang_dict.items():
             articles_fin[lang].pop()
             descriptions_fin[lang].pop()
         continue
+    embds_fin.append(embd)
     qids_fin.append(qid)
 
-    try:
-        embd = embd_dict[qid]
-    except:
-        embd = avg_embd
-    embds_fin.append(embd)
 
 if not os.path.exists(args.data_dir):
     os.makedirs(args.data_dir)
+
+for i in range(len(embds_fin)):
+    rnd = np.random.rand()
+    if rnd < 0.25:
+        #remove the embd
+        embds_fin[i] = [0]
+
+    elif rnd < 0.50:
+        #remove the summary
+        langs_available = []
+        for lang, lang_code in lang_dict.items():
+            if descriptions_fin[lang][i] != "no article":
+                langs_available.append(lang)
+        chosen_lang = np.random.choice(langs_available)
+        langs_available.remove(chosen_lang)
+        for lang in langs_available:
+            descriptions_fin[lang][i] = "no article"
+
+    elif rnd < 0.75:
+        #remove both
+        embds_fin[i] = [0]
+        langs_available = []
+        for lang, lang_code in lang_dict.items():
+            if descriptions_fin[lang][i] != "no article":
+                langs_available.append(lang)
+        chosen_lang = np.random.choice(langs_available)
+        langs_available.remove(chosen_lang)
+        for lang in langs_available:
+            descriptions_fin[lang][i] = "no article"
+
 
 for lang, lang_code in lang_dict.items():
     f1 = open(os.path.join(args.data_dir, "train.source" + lang), 'w', encoding='utf-8')
