@@ -383,10 +383,10 @@ def main():
             revision=model_args.model_revision,
             use_auth_token=True if model_args.use_auth_token else None,
         )
-        model.model.decoder1 = decoder
-        model.model.decoder2 = decoder
-        model.model.decoder3 = decoder
-        model.model.decoder4 = decoder
+        model.model.decoder1.load_state_dict(decoder.state_dict())
+        model.model.decoder2.load_state_dict(decoder.state_dict())
+        model.model.decoder3.load_state_dict(decoder.state_dict())
+        model.model.decoder4.load_state_dict(decoder.state_dict())
         del decoder
     else:
         model = AutoModelForSeq2SeqLM.from_pretrained(
