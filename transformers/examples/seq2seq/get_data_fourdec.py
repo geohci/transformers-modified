@@ -85,6 +85,8 @@ qid_dicts = {}
 for lang, lang_code in lang_dict.items():
     path = os.path.join(args.path, lang_code)
     for file in os.listdir(path):
+        if not file.endswith(".gz"):
+            continue
         with gzip.open(os.path.join(path, file), 'rb') as s_file:
             for article in s_file:
                 article = article.decode('utf-8')
