@@ -511,7 +511,7 @@ class Seq2SeqDataCollatorFourDecoders:
         for lang in target_langs:
             self.tokenizer.tgt_lang = self.lang_codes[lang]
             with self.tokenizer.as_target_tokenizer():
-                label = self.tokenizer([x["tgt_texts"][lang] for x in batch], max_length=self.data_args.max_target_length, padding=False, truncation=True)
+                label = self.tokenizer([x["tgt_texts"][lang] for x in batch], max_length=self.data_args.max_target_length, padding=True, truncation=True)
                 labels[lang] = torch.tensor(label["input_ids"])
         for lang in remaining_target_langs:
             labels[lang] = None
