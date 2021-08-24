@@ -449,7 +449,10 @@ def main():
     if model_args.fourdecoders:
         model_args.use_graph_embds = True
     if data_args.data_dir is not None:
-        dataset_class = Seq2SeqDatasetFourDecoders
+        if model.args.fourdecoders:
+            dataset_class = Seq2SeqDatasetFourDecoders
+        else:
+            dataset_class = Seq2SeqDataset
         # Get datasets
         train_dataset = (
             dataset_class(
@@ -628,7 +631,10 @@ def main():
     # Data collator
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     if data_args.data_dir is not None:
-        data_collator = Seq2SeqDataCollatorFourDecoders(tokenizer, tokenizer_bert, lang_dict, data_args, model.config.decoder_start_token_id, training_args.tpu_num_cores)
+        if model_args.fourdecoders:
+            data_collator = Seq2SeqDataCollatorFourDecoders(tokenizer, tokenizer_bert, lang_dict, data_args, model.config.decoder_start_token_id, training_args.tpu_num_cores)
+        else:
+            data_collator = Seq2SeqDataCollator(tokenizer, tokenizer_bert, lang_dict, data_args, model.config.decoder_start_token_id, training_args.tpu_num_cores)
     else:
         data_collator = DataCollatorForSeq2Seq(
             tokenizer,
