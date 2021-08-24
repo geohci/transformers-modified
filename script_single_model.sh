@@ -19,12 +19,8 @@ python ./transformers/examples/seq2seq/run_summarization.py \
     --eval_steps 100000 \
     --tokenizer_name facebook/mbart-large-cc25 \
     --model_name_or_path facebook/mbart-large-cc25 \
-    --bert_path bert-base-multilingual-uncased \
-    --fourdecoders \
     --languages en_XX,cs_CZ,fr_XX,it_IT,fi_FI,de_DE,nl_XX,ro_RO,ru_RU,ja_XX,ar_AR,tr_TR,lt_LT,lv_LV,es_XX,et_EE,ko_KR,gu_IN,kk_KZ,my_MM,si_LK,vi_VN,zh_CN,ne_NP,hi_IN \
     "$@"
 python test_model.py \
 	--languages en_XX,cs_CZ,fr_XX,it_IT,fi_FI,de_DE,nl_XX,ro_RO,ru_RU,ja_XX,ar_AR,tr_TR,lt_LT,lv_LV,es_XX,et_EE,ko_KR,gu_IN,kk_KZ,my_MM,si_LK,vi_VN,zh_CN,ne_NP,hi_IN \
-    --fourdecoders \
-    --bert_path bert-base-multilingual-uncased \
     "$@"
