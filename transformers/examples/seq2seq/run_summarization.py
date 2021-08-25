@@ -449,7 +449,7 @@ def main():
     if model_args.fourdecoders:
         model_args.use_graph_embds = True
     if data_args.data_dir is not None:
-        if model.args.fourdecoders:
+        if model_args.fourdecoders:
             dataset_class = Seq2SeqDatasetFourDecoders
         else:
             dataset_class = Seq2SeqDataset
