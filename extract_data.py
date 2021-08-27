@@ -42,7 +42,7 @@ for dataset in datasets:
     f_embd = open(os.path.join(args.data_dir, dataset+".embd"), 'w')
     f_qid = open(os.path.join(args.data_dir, dataset+".qid"), 'w')
 
-    for i in range(len(qids)):
+    for i in range(1,len(qids)+1):
         embd = linecache.getline(str(embd_f), i).rstrip("\n")
         if embd == "0":
             if args.use_graph_embds:
@@ -52,7 +52,7 @@ for dataset in datasets:
                 continue
             else:
                 f_embd.write(embd + "\n")
-        f_qid.write(qids[i])
+        f_qid.write(qids[i-1])
         for lang in langs:
             src = linecache.getline(str(src_files[lang]), i)
             tgt = linecache.getline(str(tgt_files[lang]), i)
