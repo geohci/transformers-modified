@@ -360,9 +360,9 @@ class Seq2SeqDataCollator:
             if val == "no article":
                 target_langs.remove(key)
         tgt_lang = np.random.choice(target_langs, 1)[0]
-        main_lang = tgt_lang
+        #main_lang = tgt_lang
         tgt_lang = self.lang_codes[tgt_lang]
-        #main_lang = np.random.choice(langs, 1)[0]
+        main_lang = np.random.choice(langs, 1)[0]
         remaining_langs = list(set(list(self.lang_codes.keys())) - set(langs))
         remaining_target_langs = list(set(list(self.lang_codes.keys())) - set(target_langs))
         batch_size = len(batch)
@@ -486,9 +486,9 @@ class Seq2SeqDataCollatorFourDecoders:
             if val == "no article":
                 target_langs.remove(key)
         tgt_lang = np.random.choice(target_langs, 1)[0]
-        main_lang = tgt_lang
+        #main_lang = tgt_lang
         tgt_lang = self.lang_codes[tgt_lang]
-        #main_lang = np.random.choice(langs, 1)[0]
+        main_lang = np.random.choice(langs, 1)[0]
         remaining_langs = list(set(list(self.lang_codes.keys())) - set(langs))
         remaining_target_langs = list(set(list(self.lang_codes.keys())) - set(target_langs))
         batch_size = len(batch)

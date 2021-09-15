@@ -423,7 +423,7 @@ class GenerationMixin:
         return bert_outputs
 
     def _prepare_encoder_decoder_kwargs_for_generation(
-        self, input_ids: torch.LongTensor, baseline, model_kwargs
+        self, target_lang, input_ids: torch.LongTensor, baseline, model_kwargs
     ) -> Dict[str, Any]:
         if baseline:
             if "encoder_outputs" not in model_kwargs:
@@ -433,7 +433,7 @@ class GenerationMixin:
                     argument: value for argument, value in model_kwargs.items() if not argument.startswith("decoder_")
                 }
                 attention_mask = encoder_kwargs.pop("attention_mask")
-                target_lang = encoder_kwargs.pop("target_lang")[0:2]
+                encoder_kwargs.pop("target_lang")
                 attention_mask = attention_mask[target_lang]
                 encoder_kwargs.pop("graph_embeddings")
                 encoder_kwargs.pop("bert_inputs")
@@ -469,9 +469,9 @@ class GenerationMixin:
             return model_kwargs
 
     def _prepare_decoder_input_ids_for_generation(
-        self, input_ids: torch.LongTensor, model_kwargs, decoder_start_token_id: int = None, bos_token_id: int = None
+        self, target_lang, input_ids: torch.LongTensor, model_kwargs, decoder_start_token_id: int = None, bos_token_id: int = None
     ) -> torch.LongTensor:
-        target_lang = model_kwargs["target_lang"][0:2]
+        #target_lang = model_kwargs["target_lang"][0:2]
         if "decoder_input_ids" in model_kwargs:
             return model_kwargs["decoder_input_ids"]
         
@@ -529,7 +529,7 @@ class GenerationMixin:
         baseline = False,
         **model_kwargs,
     ) -> Tuple[torch.LongTensor, Dict[str, Any]]:
-        target_lang = model_kwargs["target_lang"][0:2]
+        #target_lang = model_kwargs["target_lang"][0:2]
         expanded_return_idx = (
             torch.arange(input_ids.shape[0]).view(-1, 1).repeat(1, expand_size).view(-1).to(input_ids.device)
         )
@@ -786,6 +786,7 @@ class GenerationMixin:
         remove_invalid_values: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
         target_lang: Optional[str] = None,
+        main_lang: Optional[str] = None,
         baseline = False,
         **model_kwargs,
     ) -> Union[GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput, torch.LongTensor]:
@@ -974,6 +975,11 @@ class GenerationMixin:
         """
         model_kwargs["target_lang"] = target_lang
         target_lang = target_lang[0:2]
+        tgt = None
+        if main_lang is None:
+            tgt = target_lang
+        else:
+            tgt = main_lang
         # set init values
         num_beams = num_beams if num_beams is not None else self.config.num_beams
         num_beam_groups = num_beam_groups if num_beam_groups is not None else self.config.num_beam_groups
@@ -1006,7 +1012,7 @@ class GenerationMixin:
         #if model_kwargs.get("attention_mask", None) is None:
             # init `attention_mask` depending on `pad_token_id`
         model_kwargs["attention_mask"] = self._prepare_attention_mask_for_generation(
-            target_lang, input_ids, pad_token_id, eos_token_id
+            tgt, input_ids, pad_token_id, eos_token_id
         )
 
         # special case if pad_token_id is not defined
@@ -1019,14 +1025,14 @@ class GenerationMixin:
 
         if self.config.is_encoder_decoder:
             # add encoder_outputs to model_kwargs
-            model_kwargs = self._prepare_encoder_decoder_kwargs_for_generation(input_ids, baseline, model_kwargs)
+            model_kwargs = self._prepare_encoder_decoder_kwargs_for_generation(tgt, input_ids, baseline, model_kwargs)
 
             # set input_ids as decoder_input_ids
             if "decoder_input_ids" in model_kwargs:
                 input_ids = model_kwargs.pop("decoder_input_ids")
             else:
                 input_ids = self._prepare_decoder_input_ids_for_generation(
-                    input_ids, model_kwargs, decoder_start_token_id=decoder_start_token_id, bos_token_id=bos_token_id
+                    tgt, input_ids, model_kwargs, decoder_start_token_id=decoder_start_token_id, bos_token_id=bos_token_id
                 )
 
             if "encoder_outputs" not in model_kwargs:
@@ -1034,13 +1040,16 @@ class GenerationMixin:
 
         bert_inputs = model_kwargs["bert_inputs"]
         if bert_inputs is not None:
-            bert_outputs = self._prepare_bert_outputs(target_lang, bert_inputs, model_kwargs)
+            bert_outputs = self._prepare_bert_outputs(tgt, bert_inputs, model_kwargs)
             model_kwargs["bert_outputs"] = bert_outputs
             
         else:
             model_kwargs["bert_outputs"] = None
         
-        model_kwargs["main_lang"] = target_lang
+        if main_lang is None:
+            model_kwargs["main_lang"] = target_lang
+        else:
+            model_kwargs["main_lang"] = main_lang
 
         if input_ids.shape[-1] >= max_length:
             input_ids_string = "decoder_input_ids" if self.config.is_encoder_decoder else "input_ids"

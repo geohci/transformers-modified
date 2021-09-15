@@ -10,6 +10,7 @@ import os
 import argparse
 from pathlib import Path
 logging.basicConfig(level=logging.ERROR)
+np.random.seed(0)
 
 def prepare_inputs(inputs, device):
         """
@@ -38,6 +39,7 @@ parser.add_argument("--data_dir", type=str, help="directory to store the data")
 parser.add_argument("--output_folder", type=str, help="path to the folder where to save outputs")
 parser.add_argument("--baseline", help="whether to use baseline model", action="store_true")
 parser.add_argument("--fourdecoders", help="whether to use four decoders model", action="store_true")
+parser.add_argument("--randomization", help="whether to use randomize the choice of query in attention layer", action="store_true")
 
 args, uknown = parser.parse_known_args()
 
@@ -105,7 +107,7 @@ for i in range(len(embds)):
         tokenizer.src_lang = src_lang
         batch_enc = tokenizer([txt], padding=True, truncation=True)
         batch_encodings[lang] = batch_enc
-        available_langs.append(lang_code)    
+        available_langs.append(lang)    
     input_ids = {}
     attention_mask = {}
     for key, val in batch_encodings.items():
@@ -119,6 +121,10 @@ for i in range(len(embds)):
     for lang in remaining_langs:
         input_ids[lang] = None
         attention_mask[lang] = None
+
+    main_lang = None
+    if args.randomization:
+        main_lang = np.random.choice(available_langs,1)[0]
 
     #graph embeddings
     if args.use_graph_embds:
@@ -161,7 +167,7 @@ for i in range(len(embds)):
             bert_inputs_modified = bert_inputs.copy()
             bert_inputs_modified.pop(tgt_lang)
             batch["bert_inputs"] = bert_inputs_modified
-        translated_tokens = model.generate(**batch, max_length=20, min_length=2, length_penalty=2.0, num_beams=4, early_stopping=True, target_lang = target_lang, decoder_start_token_id=tokenizer.lang_code_to_id[target_lang], baseline=args.baseline)
+        translated_tokens = model.generate(**batch, max_length=20, min_length=2, length_penalty=2.0, num_beams=4, early_stopping=True, target_lang = target_lang, decoder_start_token_id=tokenizer.lang_code_to_id[target_lang], baseline=args.baseline, main_lang=main_lang)
         output = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
         outputs.write(output+"\n")
         target_file.write(target)
