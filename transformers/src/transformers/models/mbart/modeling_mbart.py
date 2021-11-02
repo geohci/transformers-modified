@@ -1096,7 +1096,7 @@ class MBartModelBaseline(MBartPreTrainedModel):
         self.encoder = MBartEncoder(config, self.shared)
         self.decoder = MBartDecoder(config, self.shared)
 
-        self.graph_mapping = nn.Linear(128, config.d_model)
+        self.graph_mapping = nn.Linear(config.graph_embd_length, config.d_model)
 
         self.init_weights()
 
@@ -1238,7 +1238,7 @@ class MBartModel(MBartPreTrainedModel):
         self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
-        self.graph_mapping = nn.Linear(128, config.d_model)
+        self.graph_mapping = nn.Linear(config.graph_embd_length, config.d_model)
         self.bert_mapping = nn.Linear(768, config.d_model)
 
         self.decoder = MBartDecoder(config, self.shared)
@@ -1787,7 +1787,7 @@ class MBartFourDecoders(MBartPreTrainedModel):
         self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
-        self.graph_mapping = nn.Linear(128, config.d_model)
+        self.graph_mapping = nn.Linear(config.graph_embd_length, config.d_model)
         self.bert_mapping = nn.Linear(768, config.d_model)
 
         self.decoder1 = MBartDecoder(config, self.shared) # just text
