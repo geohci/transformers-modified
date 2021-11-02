@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModelWithLMHead
+from transformers import AutoTokenizer, AutoModelWithLMHead, AutoConfig
 from transformers import MBartForConditionalGeneration, MBartTokenizer
 from transformers.models.mbart.modeling_mbart import MBartForConditionalGenerationBaseline, MBartFourDecodersConditional
 from transformers import BertModel, BertTokenizer
@@ -40,17 +40,20 @@ parser.add_argument("--output_folder", type=str, help="path to the folder where 
 parser.add_argument("--baseline", help="whether to use baseline model", action="store_true")
 parser.add_argument("--fourdecoders", help="whether to use four decoders model", action="store_true")
 parser.add_argument("--randomization", help="whether to use randomize the choice of query in attention layer", action="store_true")
+parser.add_argument("--graph_embd_length", type=int, default=128, help="length of graph embeddings")
 
 args, uknown = parser.parse_known_args()
 
 if not os.path.exists(args.output_folder):
     os.makedirs(args.output_folder)
+config = AutoConfig.from_pretrained(args.output_dir)
+config.graph_embd_length = args.graph_embd_length
 if args.baseline:
-    model = MBartForConditionalGenerationBaseline.from_pretrained(args.output_dir)
+    model = MBartForConditionalGenerationBaseline.from_pretrained(args.output_dir, config=config)
 elif args.fourdecoders:
-    model = MBartFourDecodersConditional.from_pretrained(args.output_dir)
+    model = MBartFourDecodersConditional.from_pretrained(args.output_dir, config=config)
 else:
-    model = MBartForConditionalGeneration.from_pretrained(args.output_dir)
+    model = MBartForConditionalGeneration.from_pretrained(args.output_dir, config=config)
 tokenizer = MBartTokenizer.from_pretrained(args.output_dir)
 if args.bert_path is not None:
     tokenizer_bert = BertTokenizer.from_pretrained(args.bert_path)

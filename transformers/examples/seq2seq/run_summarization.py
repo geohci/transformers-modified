@@ -124,7 +124,7 @@ class DataTrainingArguments:
     )
     src_lang: Optional[str] = field(default=None, metadata={"help": "Source language id for translation."})
     tgt_lang: Optional[str] = field(default=None, metadata={"help": "Target language id for translation."})
-    graph_emdb_length: Optional[int] = field(default=128, metadata={"help":"Length of graph embeddings"})
+    graph_embd_length: Optional[int] = field(default=128, metadata={"help":"Length of graph embeddings"})
     data_dir: Optional[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
@@ -349,7 +349,7 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    config.graph_emdb_length = data_args.graph_emdb_length
+    config.graph_embd_length = data_args.graph_embd_length
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
