@@ -1305,7 +1305,7 @@ class MBartModel(MBartPreTrainedModel):
         assert(target_lang is not None)
         assert(main_lang is not None)
 
-        lang_out = torch.ones((attention_mask[target_lang[0:2]].shape[0],1,1), device=attention_mask[target_lang[0:2]].device)
+        lang_out = torch.ones((attention_mask[main_lang].shape[0],1,1), device=attention_mask[main_lang].device)
         lang_out = self.expand(lang_out)
 
         if encoder_outputs is None:
@@ -1339,51 +1339,61 @@ class MBartModel(MBartPreTrainedModel):
                     )
                     encoder_outputs[key] = encoder_outputs_val
 
-        key, query, mask, attn_mask = None, None, None, None
-        enc_outputs_list = []
-
-        query_main = encoder_outputs[main_lang][0]
+        enc_outputs = None
         attn_mask = attention_mask[main_lang]
+        if len(encoder_outputs) != 0:
+            key, query, mask = None, None, None
+            enc_outputs_list = []
 
-        for lang, key in encoder_outputs.items():
-            key = key[0]
-            mask = attention_mask[lang]
-            query = query_main
+            query_main = encoder_outputs[main_lang][0]
 
-            mask = 1.0 - mask
+            for lang, key in encoder_outputs.items():
+                key = key[0]
+                mask = attention_mask[lang]
+                query = query_main
 
-            enc_outputs, att_weight, _ = self.mapping(hidden_states=query, key_value_states=key, output_attentions=output_attentions)
-            enc_outputs = enc_outputs + query
-            enc_outputs = self.norm(enc_outputs)
+                mask = 1.0 - mask
 
-            residual = enc_outputs
-            enc_outputs = self.activation_fn(self.fc1(enc_outputs))
-            enc_outputs = F.dropout(enc_outputs, p=self.activation_dropout, training=self.training)
-            enc_outputs = self.fc2(enc_outputs)
-            enc_outputs = F.dropout(enc_outputs, p=self.dropout, training=self.training)
-            enc_outputs = residual + enc_outputs
-            enc_outputs = self.final_layer_norm(enc_outputs)
+                enc_outputs, att_weight, _ = self.mapping(hidden_states=query, key_value_states=key, output_attentions=output_attentions)
+                enc_outputs = enc_outputs + query
+                enc_outputs = self.norm(enc_outputs)
 
-            enc_outputs_list.append(enc_outputs)
+                residual = enc_outputs
+                enc_outputs = self.activation_fn(self.fc1(enc_outputs))
+                enc_outputs = F.dropout(enc_outputs, p=self.activation_dropout, training=self.training)
+                enc_outputs = self.fc2(enc_outputs)
+                enc_outputs = F.dropout(enc_outputs, p=self.dropout, training=self.training)
+                enc_outputs = residual + enc_outputs
+                enc_outputs = self.final_layer_norm(enc_outputs)
 
-        
-        enc_outputs = torch.mean(torch.stack(enc_outputs_list), dim=0)
+                enc_outputs_list.append(enc_outputs)
+
+            
+            enc_outputs = torch.mean(torch.stack(enc_outputs_list), dim=0)
 
         #add graph embedding
         if graph_embeddings is not None:
             graph_embeddings_mapped = self.graph_mapping(graph_embeddings)
             graph_embeddings_mapped = torch.reshape(graph_embeddings_mapped, shape=(graph_embeddings_mapped.shape[0],1,graph_embeddings_mapped.shape[1]))
-            enc_outputs = torch.cat((enc_outputs,graph_embeddings_mapped), 1)
-            new_mask_column = torch.ones((attn_mask.shape[0], 1), device=enc_outputs.device)
-            attn_mask = torch.cat((attn_mask, new_mask_column), dim=1)
+            if enc_outputs is None:
+                enc_outputs = graph_embeddings_mapped
+                attn_mask = torch.ones((attn_mask.shape[0], 1), device=enc_outputs.device)
+            else:
+                enc_outputs = torch.cat((enc_outputs,graph_embeddings_mapped), 1)
+                new_mask_column = torch.ones((attn_mask.shape[0], 1), device=enc_outputs.device)
+                attn_mask = torch.cat((attn_mask, new_mask_column), dim=1)
 
         #adding summary embedding
         if bert_outputs is not None:
             bert_outputs = self.bert_mapping(bert_outputs)
             bert_outputs = torch.reshape(bert_outputs, shape=(bert_outputs.shape[0], 1, bert_outputs.shape[1]))
-            enc_outputs = torch.cat((enc_outputs, bert_outputs), 1)
-            new_mask_column = torch.ones((attn_mask.shape[0], 1), device=enc_outputs.device)
-            attn_mask = torch.cat((attn_mask, new_mask_column), dim=1)
+            if enc_outputs is None:
+                enc_outputs = bert_outputs
+                attn_mask = torch.ones((attn_mask.shape[0], 1), device=enc_outputs.device)
+            else:
+                enc_outputs = torch.cat((enc_outputs, bert_outputs), 1)
+                new_mask_column = torch.ones((attn_mask.shape[0], 1), device=enc_outputs.device)
+                attn_mask = torch.cat((attn_mask, new_mask_column), dim=1)
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
@@ -1404,15 +1414,23 @@ class MBartModel(MBartPreTrainedModel):
         if not return_dict:
             return decoder_outputs + encoder_outputs
 
+        if len(encoder_outputs) != 0:
+            enc_last_hidden_state = encoder_outputs[main_lang].last_hidden_state
+            enc_hidden_states = encoder_outputs[main_lang].hidden_states
+            enc_attentions = encoder_outputs[main_lang].attentions
+        else:
+            enc_last_hidden_state = None
+            enc_hidden_states = None
+            enc_attentions = None
         return Seq2SeqModelOutput(
             last_hidden_state=decoder_outputs.last_hidden_state,
             past_key_values=decoder_outputs.past_key_values,
             decoder_hidden_states=decoder_outputs.hidden_states,
             decoder_attentions=decoder_outputs.attentions,
             cross_attentions=decoder_outputs.cross_attentions,
-            encoder_last_hidden_state=encoder_outputs[target_lang[0:2]].last_hidden_state,
-            encoder_hidden_states=encoder_outputs[target_lang[0:2]].hidden_states,
-            encoder_attentions=encoder_outputs[target_lang[0:2]].attentions,
+            encoder_last_hidden_state=enc_last_hidden_state,
+            encoder_hidden_states=enc_hidden_states,
+            encoder_attentions=enc_attentions,
         )
 
 class MBartForConditionalGenerationBaseline(MBartPreTrainedModel):

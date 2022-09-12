@@ -20,7 +20,7 @@ parser.add_argument("--graph_path", type=str, help="path to wikidata graph relat
 
 args, uknown = parser.parse_known_args()
 
-if os.path.exists(args.data_dir) and len(os.listdir(args.data_dir) != 0):
+if os.path.exists(args.data_dir) and len(os.listdir(args.data_dir)) != 0:
     print("Data already loaded")
     quit()
 
@@ -29,53 +29,57 @@ languages = args.languages.strip().split(',')
 for lang in languages:
     lang_dict[lang[0:2]] = lang
 
-file = open(args.embd_path,'rb')
-embd_file = pickle.load(file)
-file.close()
-cnt=0
-mean_embd = np.zeros((128,))
-for key,value in embd_file.items():
-    mean_embd += value
-    cnt += 1
-avg_embd = mean_embd/cnt
-
 f = open(args.graph_path, 'r')
 lines = f.readlines()
 f.close()
 
-type_dict={}
+type_dict = {}
 for i in range(len(lines)):
-    line = lines[i].split()
-    qid_source = line[0].strip(">").split("/")[-1]
-    relation = line[1].strip(">").split("/")[-1]
-    qid_dest = line[2].strip(">").split("/")[-1]
-    if relation=="P31" or relation=="P279":
-        try:
-            curr_list = type_dict[qid_source]
-            curr_list.append(qid_dest)
-            type_dict[qid_source] = curr_list
-        except:
-            type_dict[qid_source] = [qid_dest]
-    else:
-        continue
+    qids = lines[i].strip().split()
+    try:
+        curr_list = type_dict[qids[0]]
+        curr_list.append(qids[1])
+        type_dict[qids[0]] = curr_list
+    except:
+        type_dict[qids[0]] = [qids[1]]
 del lines
-# calculate the embeddings
-embd_dict = {}
-for key, value in type_dict.items():
-    embds = []
-    for qid in value:
-        try:
-            embd = embd_file[qid]
-            embds.append(embd)
-        except:
-            continue
-    if len(embds) == 0:
-        embd_dict[key] = avg_embd
-    else:
-        embedding = np.mean(np.array(embds), axis=0)
-        embd_dict[key] = embedding
 
+cnt = 0
+mean_embd = np.zeros(200)
+embd_dict = {}
+for filename in os.listdir(args.embd_path):
+    if not filename.endswith(".pickle"):
+        continue
+    with open(os.path.join(args.embd_path,filename), 'rb') as f:
+        curr_file = pickle.load(f)
+        for key, val in curr_file.items():
+            cnt += 1
+            mean_embd += val
+        for key, value in type_dict.items():
+            for qid in value:
+                embd = None
+                try:
+                    embd = curr_file[qid]
+                except:
+                    continue
+                try:
+                    embd_list = embd_dict[key]
+                    embd_dict[key].append(embd)
+                except:
+                    embd_dict[key] = [embd]
+avg_embd = mean_embd/cnt
+for key, val in embd_dict.items():
+    embedding = np.mean(np.array(val), axis=0)
+    embd_dict[key] = embedding
+
+del curr_file
 del type_dict
+
+with open("embd_dict.pickle", 'wb') as f:
+    pickle.dump(embd_dict, f)
+with open("avg_embd.pickle", 'wb') as f:
+    pickle.dump(avg_embd, f)
+print("Done reading the embeddings")
 
 articles = {}
 descriptions = {}
@@ -119,6 +123,7 @@ for lang, lang_code in lang_dict.items():
     for i in range(len(qids[lang])):
         qid_dict[qids[lang][i]] = i
     qid_dicts[lang] = qid_dict
+print("Done reading the files")
 
 articles_fin = {}
 descriptions_fin = {}
@@ -128,7 +133,7 @@ qids_fin = []
 all_qids = []
 for lang, qids_lang in qids.items():
     all_qids.extend(qids_lang)
-
+del qids
 np.random.shuffle(all_qids)
 
 for qid in all_qids:

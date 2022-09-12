@@ -749,7 +749,7 @@ def save_metrics(self, split, metrics, combined=True):
         return
 
     path = os.path.join(self.args.output_dir, f"{split}_results.json")
-    with open(path, "w") as f:
+    with open(path, "a+") as f:
         json.dump(metrics, f, indent=4, sort_keys=True)
 
     if combined:

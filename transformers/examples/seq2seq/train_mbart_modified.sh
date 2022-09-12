@@ -1,7 +1,7 @@
 python run_summarization.py \
     --learning_rate=3e-5 \
-    --do_train \
     --do_eval \
+    --do_train \
     --evaluation_strategy="steps" \
     --freeze_encoder \
     --freeze_embeds \

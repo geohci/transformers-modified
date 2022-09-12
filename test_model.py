@@ -41,6 +41,8 @@ parser.add_argument("--baseline", help="whether to use baseline model", action="
 parser.add_argument("--fourdecoders", help="whether to use four decoders model", action="store_true")
 parser.add_argument("--randomization", help="whether to use randomize the choice of query in attention layer", action="store_true")
 parser.add_argument("--graph_embd_length", type=int, default=128, help="length of graph embeddings")
+parser.add_argument("--lang_to_test", type=str, default=None)
+parser.add_argument("--mask_text", help="whether to mask input text", action="store_true")
 
 args, uknown = parser.parse_known_args()
 
@@ -49,9 +51,9 @@ if not os.path.exists(args.output_folder):
 config = AutoConfig.from_pretrained(args.output_dir)
 config.graph_embd_length = args.graph_embd_length
 if args.baseline:
-    model = MBartForConditionalGenerationBaseline.from_pretrained(args.output_dir, config=config)
+    model = MBartForConditionalGenerationBaseline.from_pretrained(args.output_dir,config=config)
 elif args.fourdecoders:
-    model = MBartFourDecodersConditional.from_pretrained(args.output_dir, config=config)
+    model = MBartFourDecodersConditional.from_pretrained(args.output_dir,config=config)
 else:
     model = MBartForConditionalGeneration.from_pretrained(args.output_dir, config=config)
 tokenizer = MBartTokenizer.from_pretrained(args.output_dir)
@@ -74,18 +76,37 @@ for lang in languages:
 sources = {}
 targets = {}
     
-for lang, lang_code in lang_dict.items():
-    f = open(Path(args.data_dir).joinpath("test" + ".source" + lang), 'r', encoding='utf-8')
-    p = open(Path(args.data_dir).joinpath("test" + ".target" + lang), 'r', encoding='utf-8')
-    lines = f.readlines()
-    t_lines = p.readlines()
-    sources[lang] = lines
-    targets[lang] = t_lines
-    f.close()
+#for lang, lang_code in lang_dict.items():
+#    f = open(Path(args.data_dir).joinpath("test" + ".source" + lang), 'r', encoding='utf-8')
+#    p = open(Path(args.data_dir).joinpath("test" + ".target" + lang), 'r', encoding='utf-8')
+#    lines = f.readlines()
+#    t_lines = p.readlines()
+#    sources[lang] = lines
+#    targets[lang] = t_lines
+#    f.close()
 
 f = open(Path(args.data_dir).joinpath("test" + ".embd"), 'r', encoding='utf-8')
 embds = f.readlines()
+print("length of embeddings: " + str(len(embds[0])))
 f.close()
+
+for lang, lang_code in lang_dict.items():
+    try:
+        f = open(Path(args.data_dir).joinpath("test" + ".source" + lang), 'r', encoding='utf-8')
+        lines = f.readlines()
+        sources[lang] = lines
+        f.close()
+    except:
+        print("Missing source file " + str(lang) + ", creating an empty list")
+        sources[lang] = ["no article\n"] * len(embds)
+    try:
+        p = open(Path(args.data_dir).joinpath("test" + ".target" + lang), 'r', encoding='utf-8')
+        t_lines = p.readlines()
+        targets[lang] = t_lines
+        p.close()
+    except:
+        print("Missing target file " + str(lang) + ", creating an empty list")
+        targets[lang] = ["no article\n"] * len(embds)
 
 outputs = open(Path(args.output_folder).joinpath("outputs.txt"), 'w', encoding='utf-8')
 target_file = open(Path(args.output_folder).joinpath("mod_targets.txt"), 'w', encoding='utf-8')
@@ -162,15 +183,28 @@ for i in range(len(embds)):
     batch["bert_inputs"] = bert_inputs
 
     batch = prepare_inputs(batch, device)
-    
-    for tgt_lang in target_langs:
-        target_lang = lang_dict[tgt_lang]
+    if args.lang_to_test is None:
+        for tgt_lang in target_langs:
+            target_lang = lang_dict[tgt_lang]
+            target = targets[tgt_lang][i]
+            if args.bert_path is not None:
+                bert_inputs_modified = bert_inputs.copy()
+                bert_inputs_modified.pop(tgt_lang)
+                batch["bert_inputs"] = bert_inputs_modified
+            translated_tokens = model.generate(**batch, max_length=20, min_length=2, length_penalty=2.0, num_beams=4, early_stopping=True, target_lang = target_lang, decoder_start_token_id=tokenizer.lang_code_to_id[target_lang], baseline=args.baseline, mask_text=args.mask_text, main_lang=main_lang)
+            output = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
+            outputs.write(output+"\n")
+            target_file.write(target)
+            lang_file.write(target_lang+"\n")
+    else:
+        target_lang = args.lang_to_test
+        tgt_lang = target_lang[0:2]
         target = targets[tgt_lang][i]
         if args.bert_path is not None:
             bert_inputs_modified = bert_inputs.copy()
             bert_inputs_modified.pop(tgt_lang)
             batch["bert_inputs"] = bert_inputs_modified
-        translated_tokens = model.generate(**batch, max_length=20, min_length=2, length_penalty=2.0, num_beams=4, early_stopping=True, target_lang = target_lang, decoder_start_token_id=tokenizer.lang_code_to_id[target_lang], baseline=args.baseline, main_lang=main_lang)
+        translated_tokens = model.generate(**batch, max_length=20, min_length=2, length_penalty=2.0, num_beams=4, early_stopping=True, target_lang = target_lang, decoder_start_token_id=tokenizer.lang_code_to_id[target_lang], baseline=args.baseline, mask_text=args.mask_text,  main_lang=main_lang)
         output = tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
         outputs.write(output+"\n")
         target_file.write(target)

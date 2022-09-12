@@ -423,7 +423,7 @@ class GenerationMixin:
         return bert_outputs
 
     def _prepare_encoder_decoder_kwargs_for_generation(
-        self, target_lang, input_ids: torch.LongTensor, baseline, model_kwargs
+        self, target_lang, input_ids: torch.LongTensor, baseline, mask_text, model_kwargs
     ) -> Dict[str, Any]:
         if baseline:
             if "encoder_outputs" not in model_kwargs:
@@ -444,28 +444,31 @@ class GenerationMixin:
         else:
             encoder = self.get_encoder()
             expand = self.get_expand()
-            encoder_kwargs = {
-                argument: value for argument, value in model_kwargs.items() if not argument.startswith("decoder_")
-            }
-            attention_mask = encoder_kwargs.pop("attention_mask")
-            target_lang = encoder_kwargs.pop("target_lang")[0:2]
-            encoder_kwargs.pop("graph_embeddings")
-            encoder_kwargs.pop("bert_inputs")
-            
-            lang_out = torch.ones((attention_mask[target_lang].shape[0],1,1), device=attention_mask[target_lang].device)
-            lang_out = expand(lang_out)
-            encoder_outputs = {}
-            for lang, inputs in input_ids.items():
-                if inputs is not None:
-                    enc_out = encoder(inputs, attention_mask=attention_mask[lang], return_dict=True, **encoder_kwargs)
-                else:
-                    enc_out = BaseModelOutput(
-                        last_hidden_state = lang_out,
-                        hidden_states = None,
-                        attentions = None,
-                    )
-                encoder_outputs[lang] = enc_out
-            model_kwargs["encoder_outputs"] = encoder_outputs
+            if not mask_text:
+                encoder_kwargs = {
+                    argument: value for argument, value in model_kwargs.items() if not argument.startswith("decoder_")
+                }
+                attention_mask = encoder_kwargs.pop("attention_mask")
+                encoder_kwargs.pop("target_lang")
+                encoder_kwargs.pop("graph_embeddings")
+                encoder_kwargs.pop("bert_inputs")
+                
+                lang_out = torch.ones((attention_mask[target_lang].shape[0],1,1), device=attention_mask[target_lang].device)
+                lang_out = expand(lang_out)
+                encoder_outputs = {}
+                for lang, inputs in input_ids.items():
+                    if inputs is not None:
+                        enc_out = encoder(inputs, attention_mask=attention_mask[lang], return_dict=True, **encoder_kwargs)
+                    else:
+                        enc_out = BaseModelOutput(
+                            last_hidden_state = lang_out,
+                            hidden_states = None,
+                            attentions = None,
+                        )
+                    encoder_outputs[lang] = enc_out
+                model_kwargs["encoder_outputs"] = encoder_outputs
+            else:
+                model_kwargs["encoder_outputs"] = {}
             return model_kwargs
 
     def _prepare_decoder_input_ids_for_generation(
@@ -548,15 +551,18 @@ class GenerationMixin:
         
         if is_encoder_decoder:
             assert encoder_outputs is not None
-            if baseline:
-                encoder_outputs["last_hidden_state"] = encoder_outputs.last_hidden_state.index_select(
-                    0, expanded_return_idx.to(encoder_outputs.last_hidden_state.device)
-                )
-                model_kwargs["encoder_outputs"] = encoder_outputs
+            if len(encoder_outputs) != 0:
+                if baseline:
+                    encoder_outputs["last_hidden_state"] = encoder_outputs.last_hidden_state.index_select(
+                        0, expanded_return_idx.to(encoder_outputs.last_hidden_state.device)
+                    )
+                    model_kwargs["encoder_outputs"] = encoder_outputs
+                else:
+                    for lang, enc_out in encoder_outputs.items():
+                        enc_out["last_hidden_state"] = enc_out.last_hidden_state.index_select(0, expanded_return_idx)
+                        encoder_outputs[lang] = enc_out
+                    model_kwargs["encoder_outputs"] = encoder_outputs
             else:
-                for lang, enc_out in encoder_outputs.items():
-                    enc_out["last_hidden_state"] = enc_out.last_hidden_state.index_select(0, expanded_return_idx)
-                    encoder_outputs[lang] = enc_out
                 model_kwargs["encoder_outputs"] = encoder_outputs
 
         graph_embds = model_kwargs["graph_embeddings"]
@@ -788,6 +794,7 @@ class GenerationMixin:
         target_lang: Optional[str] = None,
         main_lang: Optional[str] = None,
         baseline = False,
+        mask_text = False,
         **model_kwargs,
     ) -> Union[GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput, torch.LongTensor]:
         r"""
@@ -1025,7 +1032,7 @@ class GenerationMixin:
 
         if self.config.is_encoder_decoder:
             # add encoder_outputs to model_kwargs
-            model_kwargs = self._prepare_encoder_decoder_kwargs_for_generation(tgt, input_ids, baseline, model_kwargs)
+            model_kwargs = self._prepare_encoder_decoder_kwargs_for_generation(tgt, input_ids, baseline, mask_text, model_kwargs)
 
             # set input_ids as decoder_input_ids
             if "decoder_input_ids" in model_kwargs:

@@ -1255,6 +1255,7 @@ class Trainer:
         if self.control.should_evaluate:
             metrics = self.evaluate()
             self._report_to_hp_search(trial, epoch, metrics)
+            self.save_metrics("eval", metrics)
 
         if self.control.should_save:
             self._save_checkpoint(model, trial, metrics=metrics)
