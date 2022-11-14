@@ -1,4 +1,5 @@
 import os
+import sys
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -7,9 +8,11 @@ import mwparserfromhell as mw
 import time
 import yaml
 
+__dir__ = os.path.dirname(__file__)
+sys.path.append(__dir__)
+
 from artdescapi.utils.utils import ModelLoader
 
-__dir__ = os.path.dirname(__file__)
 app = Flask(__name__)
 
 MODEL = ModelLoader()
