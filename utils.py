@@ -1,12 +1,8 @@
 from transformers import AutoTokenizer, AutoModelWithLMHead, AutoConfig
 from transformers import MBartForConditionalGeneration, MBartTokenizer
-from transformers.models.mbart.modeling_mbart import MBartForConditionalGenerationBaseline, MBartFourDecodersConditional
 from transformers import BertModel, BertTokenizer
 from transformers.tokenization_utils_base import BatchEncoding
 import torch
-import numpy as np
-import logging
-import os
 
 
 bert_path = "bert-base-multilingual-uncased"
@@ -78,21 +74,21 @@ class ModelLoader:
 		return output
 
 def prepare_inputs(inputs, device):
-        """
-        Prepare :obj:`inputs` before feeding them to the model, converting them to tensors if they are not already and
-        handling potential state.
-        """
-        for k, v in inputs.items():
-            if isinstance(v, torch.Tensor):
-                inputs[k] = v.to(device)
-            elif isinstance(v, dict):
-                for key, val in v.items():
-                    if isinstance(val, torch.Tensor):
-                        v[key] = val.to(device)
-                    elif isinstance(val, BatchEncoding) or isinstance(val, dict):
-                        for k1,v1 in val.items():
-                            if isinstance(v1, torch.Tensor):
-                                val[k1] = v1.to(device)
-        return inputs
+	"""
+	Prepare :obj:`inputs` before feeding them to the model, converting them to tensors if they are not already and
+	handling potential state.
+	"""
+	for k, v in inputs.items():
+		if isinstance(v, torch.Tensor):
+			inputs[k] = v.to(device)
+		elif isinstance(v, dict):
+			for key, val in v.items():
+				if isinstance(val, torch.Tensor):
+					v[key] = val.to(device)
+				elif isinstance(val, BatchEncoding) or isinstance(val, dict):
+					for k1,v1 in val.items():
+						if isinstance(v1, torch.Tensor):
+							val[k1] = v1.to(device)
+	return inputs
 
 
