@@ -9,7 +9,8 @@ import time
 import yaml
 
 __dir__ = os.path.dirname(__file__)
-sys.path.append(__dir__)
+__updir = os.path.abspath(os.path.join(__dir__, '..'))
+sys.path.append(__updir)
 
 from artdescapi.utils.utils import ModelLoader
 
@@ -21,7 +22,7 @@ SUPPORTED_WIKIPEDIA_LANGUAGE_CODES = ['en', 'de', 'nl', 'es', 'it', 'ru', 'fr', 
 
 # load in app user-agent or any other app config
 app.config.update(
-    yaml.safe_load(open(os.path.join(__dir__, 'flask_config.yaml'))))
+    yaml.safe_load(open(os.path.join(__updir, 'flask_config.yaml'))))
 
 # Enable CORS for API endpoints
 cors = CORS(app, resources={r'/api/*': {'origins': '*'}})
