@@ -1,7 +1,7 @@
-from ..transformers import AutoConfig
-from ..transformers import MBartForConditionalGeneration, MBartTokenizer
-from ..transformers import BertModel, BertTokenizer
-from ..transformers.tokenization_utils_base import BatchEncoding
+from artdescapi.transformers import AutoConfig
+from artdescapi.transformers import MBartForConditionalGeneration, MBartTokenizer
+from artdescapi.transformers import BertModel, BertTokenizer
+from artdescapi.transformers.tokenization_utils_base import BatchEncoding
 import torch
 
 
