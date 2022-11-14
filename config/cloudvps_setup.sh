@@ -55,9 +55,7 @@ chown -R www-data:www-data ${LOG_PATH}
 chown -R www-data:www-data ${LIB_PATH}
 
 echo "Copying configuration files..."
-cp ${TMP_PATH}/${REPO_LBL}/wsgi_template.py ${ETC_PATH}
-cp ${TMP_PATH}/${REPO_LBL}/utils.py ${ETC_PATH}
-cp -r ${TMP_PATH}/${REPO_LBL}/transformers/src/transformers ${ETC_PATH}
+cp -r ${TMP_PATH}/${REPO_LBL}/src ${ETC_PATH}
 cp ${TMP_PATH}/${REPO_LBL}/config/model.nginx ${ETC_PATH}
 cp ${TMP_PATH}/${REPO_LBL}/config/model.service ${ETC_PATH}
 cp ${TMP_PATH}/${REPO_LBL}/config/uwsgi.ini ${ETC_PATH}

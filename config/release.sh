@@ -30,9 +30,7 @@ git clone ${GIT_CLONE_HTTPS} ${TMP_PATH}/${REPO_LBL}
 #pip install -r ${TMP_PATH}/${REPO_LBL}/versions.txt
 
 echo "Copying configuration files..."
-cp ${TMP_PATH}/${REPO_LBL}/wsgi_template.py ${ETC_PATH}
-cp ${TMP_PATH}/${REPO_LBL}/utils.py ${ETC_PATH}
-cp -r ${TMP_PATH}/${REPO_LBL}/transformers/src/transformers ${ETC_PATH}
+cp -r ${TMP_PATH}/${REPO_LBL}/src ${ETC_PATH}
 cp ${TMP_PATH}/${REPO_LBL}/config/model.nginx ${ETC_PATH}
 cp ${TMP_PATH}/${REPO_LBL}/config/model.service ${ETC_PATH}
 cp ${TMP_PATH}/${REPO_LBL}/config/uwsgi.ini ${ETC_PATH}
