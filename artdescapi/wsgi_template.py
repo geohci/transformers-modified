@@ -200,7 +200,7 @@ def load_model():
     # TODO: code for loading in model and preparing for predictions
     # I generally just make the model an empty global variable that I then populate with this function similar to:
     # https://github.com/wikimedia/research-api-endpoint-template/blob/content-similarity/model/wsgi.py#L176
-    model_path = '/srv/model-25lang-all/'
+    model_path = '/Users/ijohnson/Downloads/model-25lang-notype' #'/srv/model-25lang-all/'
     MODEL.load_model(model_path)
 
 load_model()
