@@ -27,7 +27,6 @@ class ModelLoader:
 		model.model_bert = bert_model
 
 		device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-		print(device)
 		model = model.to(device)
 
 		self.model = model
@@ -55,7 +54,6 @@ class ModelLoader:
 				attention_mask[lang] = None
 
 		# process descriptions
-		print('tokenizing descriptions')
 		bert_inputs = {}
 		for lang, description in descriptions:
 			if lang != tgt_lang:
@@ -70,12 +68,8 @@ class ModelLoader:
 		batch["graph_embeddings"] = None
 		batch['bert_inputs'] = bert_inputs
 
-		print("preparing inputs")
 		batch = prepare_inputs(batch, self.device)
-		print("getting tokens")
-		print(batch)
 		tokens = self.model.generate(**batch, max_length=20, min_length=2, length_penalty=2.0, num_beams=1, early_stopping=True, target_lang = lang_dict[tgt_lang], decoder_start_token_id=self.tokenizer.lang_code_to_id[lang_dict[tgt_lang]], num_return_sequences=1)
-		print("getting output")
 		output = self.tokenizer.batch_decode(tokens, skip_special_tokens=True) #TODO check beams
 		return output
 
