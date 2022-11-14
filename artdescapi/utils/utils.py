@@ -18,7 +18,7 @@ class ModelLoader:
 
 	def load_model(self, output_dir):
 		config = AutoConfig.from_pretrained(output_dir)
-		config.graph_embd_length = 200
+		config.graph_embd_length = 128
 		model = MBartForConditionalGeneration.from_pretrained(output_dir, config=config)
 		tokenizer = MBartTokenizer.from_pretrained(output_dir)
 
