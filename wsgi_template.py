@@ -6,7 +6,7 @@ import mwapi
 import mwparserfromhell as mw
 import time
 import yaml
-from utils import ModelLoader
+from .utils import ModelLoader
 
 app = Flask(__name__)
 __dir__ = os.path.dirname(__file__)
