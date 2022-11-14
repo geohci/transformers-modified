@@ -202,6 +202,7 @@ def load_model():
     # https://github.com/wikimedia/research-api-endpoint-template/blob/content-similarity/model/wsgi.py#L176
     model_path = '/srv/model-25lang-all/'
     MODEL.load_model(model_path)
+    test_model()
 
 def test_model():
     lang = 'en'
