@@ -203,6 +203,45 @@ def load_model():
     model_path = '/srv/model-25lang-all/'
     MODEL.load_model(model_path)
 
+def test_model():
+    lang = 'en'
+    title = 'Clandonald'
+
+    execution_times = {}  # just used right now for debugging
+    features = {}  # just used right now for debugging
+    starttime = time.time()
+
+    descriptions, sitelinks = get_wikidata_info(lang, title)
+    wd_time = time.time()
+    execution_times['wikidata-info (s)'] = wd_time - starttime
+    features['descriptions'] = descriptions
+
+    first_paragraphs = {}
+    for l in sitelinks:
+        fp = get_first_paragraph(l, sitelinks[l])
+        first_paragraphs[l] = fp
+    fp_time = time.time()
+    execution_times['first-paragraph (s)'] = fp_time - wd_time
+    features['first-paragraphs'] = first_paragraphs
+
+    groundtruth_desc = get_groundtruth(lang, title)
+    gt_time = time.time()
+    execution_times['groundtruth (s)'] = gt_time - fp_time
+    print(lang, title, features, execution_times, groundtruth_desc)
+
+    prediction = MODEL.predict(first_paragraphs, descriptions, lang)
+
+    execution_times['total (s)'] = time.time() - starttime
+
+    # TODO: get prediction for article and add to the jsonified result below
+    print({'expected': 'Human settlement in Canada',
+          'lang': lang, 'title': title,
+           'groundtruth': groundtruth_desc,
+           'latency': execution_times,
+           'features': features,
+           'prediction':prediction
+           })
+
 load_model()
 application = app
 
