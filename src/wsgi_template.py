@@ -1,4 +1,5 @@
 import os
+import sys
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -6,10 +7,13 @@ import mwapi
 import mwparserfromhell as mw
 import time
 import yaml
+
+__dir__ = os.path.dirname(__file__)
+sys.path.append(__dir__)
+
 from .utils import ModelLoader
 
 app = Flask(__name__)
-__dir__ = os.path.dirname(__file__)
 
 MODEL = ModelLoader()
 SUPPORTED_WIKIPEDIA_LANGUAGE_CODES = ['en', 'de', 'nl', 'es', 'it', 'ru', 'fr', 'zh', 'ar', 'vi', 'ja', 'fi', 'ko',
