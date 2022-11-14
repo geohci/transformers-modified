@@ -13,46 +13,21 @@ LOG_PATH="/var/log/uwsgi"  # application log data
 LIB_PATH="/var/lib/${APP_LBL}"  # where virtualenv will sit
 MOD_PATH="/srv/model-25lang-all/"  # where the model binary is stored
 
-echo "Updating the system..."
-apt-get update
-apt-get install -y build-essential  # gcc (c++ compiler) necessary for fasttext
-apt-get install -y nginx  # handles incoming requests, load balances, and passes to uWSGI to be fulfilled
-apt-get install -y python3-pip  # install dependencies
-apt-get install -y python3-wheel  # make sure dependencies install correctly even when missing wheels
-apt-get install -y python3-venv  # for building virtualenv
-apt-get install -y python3-dev
-apt-get install -y uwsgi
-apt-get install -y uwsgi-plugin-python3
-# potentially add: apt-get install -y git python3 libpython3.7 python3-setuptools
-
-echo "Setting up paths..."
+# clean up old versions
 rm -rf ${TMP_PATH}
 mkdir -p ${TMP_PATH}
-mkdir -p ${SRV_PATH}/sock
-mkdir -p ${ETC_PATH}
-mkdir -p ${ETC_PATH}/resources
-mkdir -p ${LOG_PATH}
-mkdir -p ${LIB_PATH}
 
-echo "Setting up virtualenv..."
-python3 -m venv ${LIB_PATH}/p3env
-source ${LIB_PATH}/p3env/bin/activate
-
-echo "Cloning repositories..."
-
-# The simpler process is to just install dependencies per a requirements.txt file
-# With updates, however, the packages could change, leading to unexpected behavior or errors
 git clone ${GIT_CLONE_HTTPS} ${TMP_PATH}/${REPO_LBL}
 
-echo "Installing repositories..."
-pip install wheel
-pip install -r ${TMP_PATH}/${REPO_LBL}/versions.txt
+# reinstall virtualenv
+#rm -rf ${LIB_PATH}/p3env
+#echo "Setting up virtualenv..."
+#python3 -m venv ${LIB_PATH}/p3env
+#source ${LIB_PATH}/p3env/bin/activate
 
-echo "Setting up ownership..."  # makes www-data (how nginx is run) owner + group for all data etc.
-chown -R www-data:www-data ${ETC_PATH}
-chown -R www-data:www-data ${SRV_PATH}
-chown -R www-data:www-data ${LOG_PATH}
-chown -R www-data:www-data ${LIB_PATH}
+#echo "Installing repositories..."
+#pip install wheel
+#pip install -r ${TMP_PATH}/${REPO_LBL}/versions.txt
 
 echo "Copying configuration files..."
 cp ${TMP_PATH}/${REPO_LBL}/wsgi_template.py ${ETC_PATH}
