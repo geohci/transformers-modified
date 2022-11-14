@@ -54,6 +54,7 @@ class ModelLoader:
 				attention_mask[lang] = None
 
 		# process descriptions
+		print('tokenizing descriptions')
 		bert_inputs = {}
 		for lang, description in descriptions:
 			if lang != tgt_lang:
@@ -68,8 +69,11 @@ class ModelLoader:
 		batch["graph_embeddings"] = None
 		batch['bert_inputs'] = bert_inputs
 
+		print("preparing inputs")
 		batch = prepare_inputs(batch, self.device)
+		print("getting tokens")
 		tokens = self.model.generate(**batch, max_length=20, min_length=2, length_penalty=2.0, num_beams=4, early_stopping=True, target_lang = lang_dict[tgt_lang], decoder_start_token_id=self.tokenizer.lang_code_to_id[lang_dict[tgt_lang]], num_return_sequences=4)
+		print("getting output")
 		output = self.tokenizer.batch_decode(tokens, skip_special_tokens=True) #TODO check beams
 		return output
 

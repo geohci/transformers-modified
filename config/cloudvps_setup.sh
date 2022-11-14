@@ -33,7 +33,7 @@ mkdir -p ${ETC_PATH}
 mkdir -p ${ETC_PATH}/resources
 mkdir -p ${LOG_PATH}
 mkdir -p ${LIB_PATH}
-#mkdir -p /var/www/.cache  # cache for model code
+#mkdir -p /var/www/.cache/huggingface/transformers  # cache for model code
 
 echo "Setting up virtualenv..."
 python3 -m venv ${LIB_PATH}/p3env
@@ -54,6 +54,7 @@ chown -R www-data:www-data ${ETC_PATH}
 chown -R www-data:www-data ${SRV_PATH}
 chown -R www-data:www-data ${LOG_PATH}
 chown -R www-data:www-data ${LIB_PATH}
+chown -R www-data:www-data /var/www/.cache
 
 echo "Copying configuration files..."
 cp -r ${TMP_PATH}/${REPO_LBL}/artdescapi ${ETC_PATH}

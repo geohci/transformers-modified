@@ -55,6 +55,7 @@ def get_article_description():
     groundtruth_desc = get_groundtruth(lang, title)
     gt_time = time.time()
     execution_times['groundtruth (s)'] = gt_time - fp_time
+    print(lang, title, features, execution_times, groundtruth_desc)
 
     prediction = MODEL.predict(first_paragraphs, descriptions, lang)
 
