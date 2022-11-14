@@ -9,7 +9,7 @@ import time
 import yaml
 
 __dir__ = os.path.dirname(__file__)
-sys.path.append(__dir__)
+sys.path.append(os.path.join(__dir__, 'utils'))
 
 from .utils import ModelLoader
 
