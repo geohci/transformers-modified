@@ -25,7 +25,7 @@ app.config.update(
     yaml.safe_load(open(os.path.join(__updir, 'flask_config.yaml'))))
 
 # Enable CORS for API endpoints
-cors = CORS(app, resources={r'/api/*': {'origins': '*'}})
+cors = CORS(app, resources={r'/article': {'origins': '*'}})
 
 
 @app.route('/article', methods=['GET'])
