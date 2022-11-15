@@ -34,7 +34,7 @@ class ModelLoader:
 		self.tokenizer_bert = tokenizer_bert
 		self.device = device
 
-	def predict(self, sources, descriptions, tgt_lang):
+	def predict(self, sources, descriptions, tgt_lang, num_beams=1, num_return_sequences=1):
 		batch = {}
 		input_ids = {}
 		attention_mask = {}
@@ -69,7 +69,10 @@ class ModelLoader:
 		batch['bert_inputs'] = bert_inputs
 
 		batch = prepare_inputs(batch, self.device)
-		tokens = self.model.generate(**batch, max_length=20, min_length=2, length_penalty=2.0, num_beams=1, early_stopping=True, target_lang = lang_dict[tgt_lang], decoder_start_token_id=self.tokenizer.lang_code_to_id[lang_dict[tgt_lang]], num_return_sequences=1)
+		tokens = self.model.generate(**batch, max_length=20, min_length=2, length_penalty=2.0, num_beams=num_beams,
+									 early_stopping=True, target_lang = lang_dict[tgt_lang],
+									 decoder_start_token_id=self.tokenizer.lang_code_to_id[lang_dict[tgt_lang]],
+									 num_return_sequences=num_return_sequences)
 		output = self.tokenizer.batch_decode(tokens, skip_special_tokens=True) #TODO check beams
 		return output
 

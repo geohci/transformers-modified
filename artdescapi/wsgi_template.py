@@ -4,7 +4,6 @@ import sys
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import mwapi
-import mwparserfromhell as mw
 import requests
 import time
 import yaml
@@ -31,7 +30,7 @@ cors = CORS(app, resources={r'/article': {'origins': '*'}})
 
 @app.route('/article', methods=['GET'])
 def get_article_description():
-    lang, title, error = validate_api_args()
+    lang, title, num_beams, num_return, error = validate_api_args()
     if error:
         return jsonify({'error': error})
 
@@ -57,12 +56,14 @@ def get_article_description():
     gt_time = time.time()
     execution_times['groundtruth (s)'] = gt_time - fp_time
 
-    prediction = MODEL.predict(first_paragraphs, descriptions, lang)
+    prediction = MODEL.predict(first_paragraphs, descriptions, lang,
+                               num_beams=num_beams, num_return_sequences=num_return)
 
     execution_times['total (s)'] = time.time() - starttime
 
     # TODO: get prediction for article and add to the jsonified result below
     return jsonify({'lang': lang, 'title': title,
+                    'num_beams':num_beams, 'num_return':num_return,
                     'groundtruth': groundtruth_desc,
                     'latency': execution_times,
                     'features': features,
@@ -161,6 +162,8 @@ def validate_api_args():
     error = None
     lang = None
     page_title = None
+    num_beams = 1
+    num_return = 1
     if request.args.get('title') and request.args.get('lang'):
         lang = request.args['lang']
         page_title = get_canonical_page_title(request.args['title'], lang)
@@ -173,7 +176,21 @@ def validate_api_args():
     else:
         error = 'missing language -- e.g., "en" for English -- and title -- e.g., "2005_World_Series" for <a href="https://en.wikipedia.org/wiki/2005_World_Series">https://en.wikipedia.org/wiki/2005_World_Series</a>'
 
-    return lang, page_title, error
+    if request.args.get('num_return'):
+        try:
+            num_return = int(request.args['num_return'])
+            num_return = max(1, num_return)  # make sure at least 1 return; if too high, request will just timeout
+            num_beams = num_return  # must have at least as many beams as return sequences
+        except Exception:
+            pass
+    if request.args.get('num_beams'):
+        try:
+            num_beams = int(request.args['num_beams'])
+            num_beams = max(num_return, num_beams)  # must have at least as many beams as return sequences
+        except Exception:
+            pass
+
+    return lang, page_title, num_beams, num_return, error
 
 
 def load_model():

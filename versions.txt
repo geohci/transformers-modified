@@ -51,6 +51,5 @@ zipp==3.4.1
 Flask
 Flask-Cors
 mwapi
-mwparserfromhell
 PyYAML
 uWSGI
