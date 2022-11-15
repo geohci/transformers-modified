@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import mwapi
 import mwparserfromhell as mw
+import requests
 import time
 import yaml
 
@@ -70,30 +71,10 @@ def get_article_description():
 
 
 def get_first_paragraph(lang, title):
-    """Gather set of up to `limit` outlinks for an article."""
-    session = mwapi.Session(f'https://{lang}.wikipedia.org', user_agent=app.config['CUSTOM_UA'])
-
-    # get wikitext for article
-    result = session.get(
-        action="parse",
-        page=title,
-        redirects='',
-        prop='wikitext',
-        format='json',
-        formatversion=2
-    )
-
-    # return first paragraph
-    # try to skip e.g., leading templates if they are separate paragraphs with text length condition
-    # if no paragraph meets condition, return entire document
-    # if error, return empty string
     try:
-        wikitext = result['parse']['wikitext']
-        first_paragraph = wikitext
-        for paragraph in wikitext.split('\n\n'):
-            if len(mw.parse(paragraph).strip_code()) > 25:
-                first_paragraph = paragraph
-                break
+        # get plain-text extract of article
+        response = requests.get(f'https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}', headers={ 'User-Agent': app.config['CUSTOM_UA'] })
+        first_paragraph = response.json()['extract']
     except Exception:
         first_paragraph = ''
 
