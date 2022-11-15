@@ -46,13 +46,12 @@ def get_article_description():
 
     first_paragraphs = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        future_to_lang = { executor.submit(get_first_paragraph, lang, sitelinks[lang]): lang for lang in sitelinks }
+        future_to_lang = { executor.submit(get_first_paragraph, l, sitelinks[l]): l for l in sitelinks }
         for future in concurrent.futures.as_completed(future_to_lang):
-            lang = future_to_lang[future]
             try:
-                first_paragraphs[lang] = future.result()
+                first_paragraphs[future_to_lang[future]] = future.result()
             except Exception:
-                first_paragraphs[lang] = ''
+                first_paragraphs[future_to_lang[future]] = ''
 
     fp_time = time.time()
     execution_times['first-paragraph (s)'] = fp_time - wd_time
@@ -217,13 +216,12 @@ def test_model():
 
     first_paragraphs = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        future_to_lang = { executor.submit(get_first_paragraph, lang, sitelinks[lang]): lang for lang in sitelinks }
+        future_to_lang = { executor.submit(get_first_paragraph, l, sitelinks[l]): l for l in sitelinks }
         for future in concurrent.futures.as_completed(future_to_lang):
-            lang = future_to_lang[future]
             try:
-                first_paragraphs[lang] = future.result()
+                first_paragraphs[future_to_lang[future]] = future.result()
             except Exception:
-                first_paragraphs[lang] = ''
+                first_paragraphs[future_to_lang[future]] = ''
 
     fp_time = time.time()
     execution_times['first-paragraph (s)'] = fp_time - wd_time
