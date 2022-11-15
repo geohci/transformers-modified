@@ -5,3 +5,6 @@ DEBUG: False
 
 # Don't sort JSON dictionaries
 JSON_SORT_KEYS: False
+
+# Output UTF-8 instead of ASCII
+JSON_AS_ASCII: False
