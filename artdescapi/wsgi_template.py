@@ -3,6 +3,7 @@ import sys
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import concurrent.futures
 import mwapi
 import requests
 import time
@@ -44,10 +45,15 @@ def get_article_description():
     features['descriptions'] = descriptions
 
     first_paragraphs = {}
-    for l in sitelinks:
-        fp = get_first_paragraph(l, sitelinks[l])
-        # TODO whatever processing you apply to the wikitext
-        first_paragraphs[l] = fp
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        future_to_lang = { executor.submit(get_first_paragraph, lang, sitelinks[lang]): lang for lang in sitelinks }
+        for future in concurrent.futures.as_completed(future_to_lang):
+            lang = future_to_lang[future]
+            try:
+                first_paragraphs[lang] = future.result()
+            except Exception:
+                first_paragraphs[lang] = ''
+
     fp_time = time.time()
     execution_times['first-paragraph (s)'] = fp_time - wd_time
     features['first-paragraphs'] = first_paragraphs
@@ -72,14 +78,9 @@ def get_article_description():
 
 
 def get_first_paragraph(lang, title):
-    try:
-        # get plain-text extract of article
-        response = requests.get(f'https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}', headers={ 'User-Agent': app.config['CUSTOM_UA'] })
-        first_paragraph = response.json()['extract']
-    except Exception:
-        first_paragraph = ''
-
-    return first_paragraph
+    # get plain-text extract of article
+    response = requests.get(f'https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}', headers={ 'User-Agent': app.config['CUSTOM_UA'] })
+    return response.json()['extract']
 
 def get_groundtruth(lang, title):
     """Get existing article description (groundtruth).
@@ -215,9 +216,15 @@ def test_model():
     features['descriptions'] = descriptions
 
     first_paragraphs = {}
-    for l in sitelinks:
-        fp = get_first_paragraph(l, sitelinks[l])
-        first_paragraphs[l] = fp
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        future_to_lang = { executor.submit(get_first_paragraph, lang, sitelinks[lang]): lang for lang in sitelinks }
+        for future in concurrent.futures.as_completed(future_to_lang):
+            lang = future_to_lang[future]
+            try:
+                first_paragraphs[lang] = future.result()
+            except Exception:
+                first_paragraphs[lang] = ''
+
     fp_time = time.time()
     execution_times['first-paragraph (s)'] = fp_time - wd_time
     features['first-paragraphs'] = first_paragraphs
