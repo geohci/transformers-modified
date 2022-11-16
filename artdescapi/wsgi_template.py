@@ -45,21 +45,17 @@ def get_article_description():
     features['descriptions'] = descriptions
 
     first_paragraphs = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        future_to_lang = { executor.submit(get_first_paragraph, l, sitelinks[l]): l for l in sitelinks }
-        for future in concurrent.futures.as_completed(future_to_lang):
-            try:
-                first_paragraphs[future_to_lang[future]] = future.result()
-            except Exception:
-                first_paragraphs[future_to_lang[future]] = ''
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+        futures = { executor.submit(get_first_paragraph, l, sitelinks[l]): l for l in sitelinks }
+        futures[executor.submit(get_groundtruth, lang, title)] = 'groundtruth'
+        for future in concurrent.futures.as_completed(futures):
+            if futures[future] == 'groundtruth':
+                groundtruth_desc = future.result()
+            else:
+                first_paragraphs[futures[future]] = future.result()
 
-    fp_time = time.time()
-    execution_times['first-paragraph (s)'] = fp_time - wd_time
+    execution_times['total network (s)'] = time.time() - starttime
     features['first-paragraphs'] = first_paragraphs
-
-    groundtruth_desc = get_groundtruth(lang, title)
-    gt_time = time.time()
-    execution_times['groundtruth (s)'] = gt_time - fp_time
 
     prediction = MODEL.predict(first_paragraphs, descriptions, lang,
                                num_beams=num_beams, num_return_sequences=num_return)
@@ -78,8 +74,11 @@ def get_article_description():
 
 def get_first_paragraph(lang, title):
     # get plain-text extract of article
-    response = requests.get(f'https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}', headers={ 'User-Agent': app.config['CUSTOM_UA'] })
-    return response.json()['extract']
+    try:
+        response = requests.get(f'https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}', headers={ 'User-Agent': app.config['CUSTOM_UA'] })
+        return response.json()['extract']
+    except Exception:
+        return ''
 
 def get_groundtruth(lang, title):
     """Get existing article description (groundtruth).
@@ -215,21 +214,17 @@ def test_model():
     features['descriptions'] = descriptions
 
     first_paragraphs = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        future_to_lang = { executor.submit(get_first_paragraph, l, sitelinks[l]): l for l in sitelinks }
-        for future in concurrent.futures.as_completed(future_to_lang):
-            try:
-                first_paragraphs[future_to_lang[future]] = future.result()
-            except Exception:
-                first_paragraphs[future_to_lang[future]] = ''
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+        futures = { executor.submit(get_first_paragraph, l, sitelinks[l]): l for l in sitelinks }
+        futures[executor.submit(get_groundtruth, lang, title)] = 'groundtruth'
+        for future in concurrent.futures.as_completed(futures):
+            if futures[future] == 'groundtruth':
+                groundtruth_desc = future.result()
+            else:
+                first_paragraphs[futures[future]] = future.result()
 
-    fp_time = time.time()
-    execution_times['first-paragraph (s)'] = fp_time - wd_time
+    execution_times['total network (s)'] = time.time() - starttime
     features['first-paragraphs'] = first_paragraphs
-
-    groundtruth_desc = get_groundtruth(lang, title)
-    gt_time = time.time()
-    execution_times['groundtruth (s)'] = gt_time - fp_time
 
     prediction = MODEL.predict(first_paragraphs, descriptions, lang)
 
