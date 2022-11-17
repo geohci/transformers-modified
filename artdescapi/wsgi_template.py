@@ -31,10 +31,14 @@ cors = CORS(app, resources={r'/article': {'origins': '*'}})
 
 @app.route('/article', methods=['GET'])
 def get_article_description():
-    lang, title, num_beams, num_return, error = validate_api_args()
+    lang, title, num_beams, error = validate_api_args()
     if error:
         return jsonify({'error': error})
+    else:
+        return jsonify(run_model(lang, title, num_beams))
 
+
+def run_model(lang, title, num_beams):
     execution_times = {}  # just used right now for debugging
     features = {}  # just used right now for debugging
     starttime = time.time()
@@ -58,18 +62,16 @@ def get_article_description():
     features['first-paragraphs'] = first_paragraphs
 
     prediction = MODEL.predict(first_paragraphs, descriptions, lang,
-                               num_beams=num_beams, num_return_sequences=num_return)
+                               num_beams=num_beams, num_return_sequences=num_beams)
 
     execution_times['total (s)'] = time.time() - starttime
 
-    # TODO: get prediction for article and add to the jsonified result below
-    return jsonify({'lang': lang, 'title': title,
-                    'num_beams':num_beams, 'num_return':num_return,
-                    'groundtruth': groundtruth_desc,
-                    'latency': execution_times,
-                    'features': features,
-                    'prediction':prediction
-                    })
+    return {'lang': lang, 'title': title,
+            'num_beams':num_beams,
+            'groundtruth': groundtruth_desc,
+            'latency': execution_times,
+            'features': features,
+            'prediction':prediction}
 
 
 def get_first_paragraph(lang, title):
@@ -161,8 +163,6 @@ def validate_api_args():
     error = None
     lang = None
     page_title = None
-    num_beams = 1
-    num_return = 1
     if request.args.get('title') and request.args.get('lang'):
         lang = request.args['lang']
         page_title = get_canonical_page_title(request.args['title'], lang)
@@ -175,27 +175,19 @@ def validate_api_args():
     else:
         error = 'missing language -- e.g., "en" for English -- and title -- e.g., "2005_World_Series" for <a href="https://en.wikipedia.org/wiki/2005_World_Series">https://en.wikipedia.org/wiki/2005_World_Series</a>'
 
-    if request.args.get('num_return'):
-        try:
-            num_return = int(request.args['num_return'])
-            num_return = max(1, num_return)  # make sure at least 1 return; if too high, request will just timeout
-            num_beams = num_return  # must have at least as many beams as return sequences
-        except Exception:
-            pass
+    num_beams = 1
     if request.args.get('num_beams'):
         try:
-            num_beams = int(request.args['num_beams'])
-            num_beams = max(num_return, num_beams)  # must have at least as many beams as return sequences
+            num_beams = max(int(request.args['num_beams']), num_beams)  # must return at least one sequence
         except Exception:
             pass
 
-    return lang, page_title, num_beams, num_return, error
+    return lang, page_title, num_beams, error
 
 
 def load_model():
-    # TODO: code for loading in model and preparing for predictions
-    # I generally just make the model an empty global variable that I then populate with this function similar to:
-    # https://github.com/wikimedia/research-api-endpoint-template/blob/content-similarity/model/wsgi.py#L176
+    # Load model (takes ~1 minute) and prime with first prediction
+    # to make sure operating correctly and fully loaded in
     model_path = '/srv/model-25lang-all/'
     MODEL.load_model(model_path)
     test_model()
@@ -203,41 +195,12 @@ def load_model():
 def test_model():
     lang = 'en'
     title = 'Clandonald'
+    num_beams = 2
 
-    execution_times = {}  # just used right now for debugging
-    features = {}  # just used right now for debugging
-    starttime = time.time()
-
-    descriptions, sitelinks = get_wikidata_info(lang, title)
-    wd_time = time.time()
-    execution_times['wikidata-info (s)'] = wd_time - starttime
-    features['descriptions'] = descriptions
-
-    first_paragraphs = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
-        futures = { executor.submit(get_first_paragraph, l, sitelinks[l]): l for l in sitelinks }
-        futures[executor.submit(get_groundtruth, lang, title)] = 'groundtruth'
-        for future in concurrent.futures.as_completed(futures):
-            if futures[future] == 'groundtruth':
-                groundtruth_desc = future.result()
-            else:
-                first_paragraphs[futures[future]] = future.result()
-
-    execution_times['total network (s)'] = time.time() - starttime
-    features['first-paragraphs'] = first_paragraphs
-
-    prediction = MODEL.predict(first_paragraphs, descriptions, lang)
-
-    execution_times['total (s)'] = time.time() - starttime
-
-    # TODO: get prediction for article and add to the jsonified result below
-    print({'expected': 'Human settlement in Canada',
-          'lang': lang, 'title': title,
-           'groundtruth': groundtruth_desc,
-           'latency': execution_times,
-           'features': features,
-           'prediction':prediction
-           })
+    expected = ['Hamlet in Alberta, Canada', 'human settlement in Alberta, Canada']
+    result = run_model(lang, title, num_beams)
+    result['expected'] = expected
+    print(result)
 
 load_model()
 application = app
