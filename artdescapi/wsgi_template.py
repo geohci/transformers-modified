@@ -3,6 +3,7 @@ import sys
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import concurrent.futures
 import mwapi
 import requests
 import time
@@ -44,17 +45,17 @@ def get_article_description():
     features['descriptions'] = descriptions
 
     first_paragraphs = {}
-    for l in sitelinks:
-        fp = get_first_paragraph(l, sitelinks[l])
-        # TODO whatever processing you apply to the wikitext
-        first_paragraphs[l] = fp
-    fp_time = time.time()
-    execution_times['first-paragraph (s)'] = fp_time - wd_time
-    features['first-paragraphs'] = first_paragraphs
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+        futures = { executor.submit(get_first_paragraph, l, sitelinks[l]): l for l in sitelinks }
+        futures[executor.submit(get_groundtruth, lang, title)] = 'groundtruth'
+        for future in concurrent.futures.as_completed(futures):
+            if futures[future] == 'groundtruth':
+                groundtruth_desc = future.result()
+            else:
+                first_paragraphs[futures[future]] = future.result()
 
-    groundtruth_desc = get_groundtruth(lang, title)
-    gt_time = time.time()
-    execution_times['groundtruth (s)'] = gt_time - fp_time
+    execution_times['total network (s)'] = time.time() - starttime
+    features['first-paragraphs'] = first_paragraphs
 
     prediction = MODEL.predict(first_paragraphs, descriptions, lang,
                                num_beams=num_beams, num_return_sequences=num_return)
@@ -72,14 +73,12 @@ def get_article_description():
 
 
 def get_first_paragraph(lang, title):
+    # get plain-text extract of article
     try:
-        # get plain-text extract of article
         response = requests.get(f'https://{lang}.wikipedia.org/api/rest_v1/page/summary/{title}', headers={ 'User-Agent': app.config['CUSTOM_UA'] })
-        first_paragraph = response.json()['extract']
+        return response.json()['extract']
     except Exception:
-        first_paragraph = ''
-
-    return first_paragraph
+        return ''
 
 def get_groundtruth(lang, title):
     """Get existing article description (groundtruth).
@@ -215,16 +214,17 @@ def test_model():
     features['descriptions'] = descriptions
 
     first_paragraphs = {}
-    for l in sitelinks:
-        fp = get_first_paragraph(l, sitelinks[l])
-        first_paragraphs[l] = fp
-    fp_time = time.time()
-    execution_times['first-paragraph (s)'] = fp_time - wd_time
-    features['first-paragraphs'] = first_paragraphs
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+        futures = { executor.submit(get_first_paragraph, l, sitelinks[l]): l for l in sitelinks }
+        futures[executor.submit(get_groundtruth, lang, title)] = 'groundtruth'
+        for future in concurrent.futures.as_completed(futures):
+            if futures[future] == 'groundtruth':
+                groundtruth_desc = future.result()
+            else:
+                first_paragraphs[futures[future]] = future.result()
 
-    groundtruth_desc = get_groundtruth(lang, title)
-    gt_time = time.time()
-    execution_times['groundtruth (s)'] = gt_time - fp_time
+    execution_times['total network (s)'] = time.time() - starttime
+    features['first-paragraphs'] = first_paragraphs
 
     prediction = MODEL.predict(first_paragraphs, descriptions, lang)
 
