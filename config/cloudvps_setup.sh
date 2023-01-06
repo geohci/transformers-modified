@@ -33,7 +33,7 @@ mkdir -p ${ETC_PATH}
 mkdir -p ${ETC_PATH}/resources
 mkdir -p ${LOG_PATH}
 mkdir -p ${LIB_PATH}
-#mkdir -p /var/www/.cache/huggingface/transformers  # cache for model code
+mkdir -p /var/www/.cache/huggingface/transformers  # cache for model code
 
 echo "Setting up virtualenv..."
 python3 -m venv ${LIB_PATH}/p3env
