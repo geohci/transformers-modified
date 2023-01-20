@@ -83,26 +83,40 @@ def get_first_paragraph(lang, title):
         return ''
 
 def get_groundtruth(lang, title):
-    """Get existing article description (groundtruth).
-
-    NOTE: this uses the pageprops API which accounts for local overrides of Wikidata descriptions
-          such as the template {{Short description|...}} on English Wikipedia.
-    """
+    """Get existing article description (groundtruth)."""
     session = mwapi.Session(f'https://{lang}.wikipedia.org', user_agent=app.config['CUSTOM_UA'])
 
-    result = session.get(
-        action="query",
-        prop="pageprops",
-        titles=title,
-        redirects="",
-        format='json',
-        formatversion=2
-    )
-
-    try:
-        return result['query']['pages'][0]['pageprops']['wikibase-shortdesc']
-    except Exception:
-        return None
+    # English has a prop that takes into account shortdescs (local override) that other languages don't
+    if lang == 'en':
+        result = session.get(
+            action="query",
+            prop="pageprops",
+            titles=title,
+            redirects="",
+            format='json',
+            formatversion=2
+        )
+        try:
+            return result['query']['pages'][0]['pageprops']['wikibase-shortdesc']
+        except Exception:
+            return None
+    # Non-English languages: get description from Wikidata
+    else:
+        # https://fr.wikipedia.org/w/api.php?action=query&prop=pageterms&titles=Chicago&wbptterms=description&wbptlanguage=fr&format=json&formatversion=2
+        result = session.get(
+            action="query",
+            prop="pageterms",
+            titles=title,
+            redirects="",
+            wbptterms="description",
+            wbptlanguage=lang,
+            format='json',
+            formatversion=2
+        )
+        try:
+            return result['query']['pages'][0]['terms']['description'][0]
+        except Exception:
+            return None
 
 def get_wikidata_info(lang, title):
     """Get article descriptions from Wikidata"""
