@@ -155,13 +155,13 @@ def get_wikidata_info(lang, title):
             sitelinks[lang] = result['entities'][qid]['sitelinks'][wiki]['title']
         try:
             human = False
-            claims = result['entities']['Q33688379']['claims']
+            claims = result['entities'][qid]['claims']
             for io_claim in claims.get('P31', []):
                 if io_claim['mainsnak']['datavalue']['value']['id'] == 'Q5':
                     human = True
                     break
             died = 'P570' in claims  # date-of-death property
-            if human and not dead:
+            if human and not died:
                 blp = True
         except Exception:
             pass  # ok to error out on this and keep rest of info -- that says likely not BLP
