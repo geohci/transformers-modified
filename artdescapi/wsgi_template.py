@@ -49,7 +49,7 @@ def run_model(lang, title, num_beams):
     features = {}  # just used right now for debugging
     starttime = time.time()
 
-    descriptions, sitelinks = get_wikidata_info(lang, title)
+    descriptions, sitelinks, blp = get_wikidata_info(lang, title)
     wd_time = time.time()
     execution_times['wikidata-info (s)'] = wd_time - starttime
     features['descriptions'] = descriptions
@@ -72,7 +72,7 @@ def run_model(lang, title, num_beams):
 
     execution_times['total (s)'] = time.time() - starttime
 
-    return {'lang': lang, 'title': title,
+    return {'lang': lang, 'title': title, 'blp':blp,
             'num_beams':num_beams,
             'groundtruth': groundtruth_desc,
             'latency': execution_times,
@@ -142,6 +142,7 @@ def get_wikidata_info(lang, title):
 
     descriptions = {}
     sitelinks = {}
+    blp = False
     try:
         # should be exactly 1 QID for the page if it has a Wikidata item
         qid = list(result['entities'].keys())[0]
@@ -152,10 +153,22 @@ def get_wikidata_info(lang, title):
         for wiki in result['entities'][qid]['sitelinks']:
             lang = wiki[:-4]  # remove 'wiki' part
             sitelinks[lang] = result['entities'][qid]['sitelinks'][wiki]['title']
+        try:
+            human = False
+            claims = result['entities']['Q33688379']['claims']
+            for io_claim in claims.get('P31', []):
+                if io_claim['mainsnak']['datavalue']['value']['id'] == 'Q5':
+                    human = True
+                    break
+            died = 'P570' in claims  # date-of-death property
+            if human and not dead:
+                blp = True
+        except Exception:
+            pass  # ok to error out on this and keep rest of info -- that says likely not BLP
     except Exception:
         pass
 
-    return descriptions, sitelinks
+    return descriptions, sitelinks, blp
 
 def get_canonical_page_title(title, lang):
     """Resolve redirects / normalization -- used to verify that an input page_title exists and help future API calls"""
